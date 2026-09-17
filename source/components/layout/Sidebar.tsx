@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   AlertOctagon,
@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Building2,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 
@@ -100,7 +101,14 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isConfigured, profile } = useAuth();
+  const router = useRouter();
+  const { isConfigured, profile, user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 h-screen sticky top-0 select-none z-30">
@@ -179,7 +187,7 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* Footer Info / Data Connectivity Indicator */}
+      {/* Footer Info / Data Connectivity Indicator & User Controls */}
       <div className="p-3 border-t border-slate-200 bg-slate-50/60 space-y-2">
         <div className="flex items-center justify-between text-[11px]">
           <span className="text-slate-500 font-medium">Data Source:</span>
@@ -195,14 +203,28 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded p-2 text-[11px] text-slate-600">
-          <div className="font-semibold text-slate-800 truncate">
-            {profile?.full_name || 'Rajesh Sharma'}
+        <div className="bg-white border border-slate-200 rounded-lg p-2.5 text-[11px] text-slate-600 shadow-2xs space-y-1">
+          <div className="font-bold text-slate-800 truncate">
+            {profile?.full_name || user?.email || 'Authenticated User'}
           </div>
-          <div className="text-[10px] text-slate-500 truncate">
-            {profile?.department || 'Supply Chain & Logistics'}
+          <div className="text-[10px] text-slate-500 truncate flex items-center justify-between">
+            <span>{profile?.department || 'Astra Motors'}</span>
+            {profile?.role && (
+              <span className="font-semibold text-sky-700 bg-sky-50 px-1 py-0.2 rounded border border-sky-200 text-[9px]">
+                {profile.role.replace(/_/g, ' ')}
+              </span>
+            )}
           </div>
         </div>
+
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-red-700 hover:bg-red-50 border border-slate-200 rounded-lg transition cursor-pointer"
+          title="Sign Out of ResiliNet"
+        >
+          <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-red-600" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </aside>
   );

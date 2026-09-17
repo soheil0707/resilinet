@@ -68,6 +68,12 @@ export function Header() {
     setShowRoleMenu(false);
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+    router.refresh();
+  };
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
       {/* Left: Organization & Screen Info */}
@@ -144,28 +150,27 @@ export function Header() {
         </button>
 
         {/* User Account / Logout */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold ring-1 ring-slate-800">
-            {profile?.full_name?.charAt(0) || 'R'}
+        <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
+          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold ring-1 ring-slate-800 shrink-0">
+            {profile?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div className="hidden md:block text-left">
-            <div className="text-xs font-semibold text-slate-800 leading-none">
-              {profile?.full_name || 'Rajesh Sharma'}
+            <div className="text-xs font-semibold text-slate-800 leading-none truncate max-w-[140px]">
+              {profile?.full_name || user?.email || 'Authenticated User'}
             </div>
-            <div className="text-[10px] text-slate-500 leading-tight">
-              {profile?.company || 'Astra Motors'}
+            <div className="text-[10px] text-slate-500 leading-tight truncate max-w-[140px] mt-0.5">
+              {profile?.department || 'Astra Motors'}
             </div>
           </div>
 
-          {isConfigured && user && (
-            <button
-              onClick={() => signOut()}
-              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-slate-600 hover:text-red-700 hover:bg-red-50 border border-slate-200 rounded transition cursor-pointer"
+            title="Sign Out of ResiliNet"
+          >
+            <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-red-600" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
         </div>
       </div>
     </header>

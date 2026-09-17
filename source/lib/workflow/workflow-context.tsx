@@ -36,10 +36,6 @@ export interface WorkflowContextValue {
   resetCrisisWorkflow: () => void;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
-
-const WorkflowContext = createContext<WorkflowContextValue | null>(null);
-
 const STORAGE_KEY = 'resilinet_workflow_state';
 
 const DEFAULT_EXECUTION_STEPS: ExecutionStep[] = [
@@ -79,6 +75,20 @@ const DEFAULT_EXECUTION_STEPS: ExecutionStep[] = [
     status: 'PENDING',
   },
 ];
+
+const DEFAULT_WORKFLOW_CONTEXT: WorkflowContextValue = {
+  workflowState: 'DETECTED',
+  approvedStrategy: null,
+  executionSteps: DEFAULT_EXECUTION_STEPS,
+  setWorkflowState: () => {},
+  setApprovedStrategy: () => {},
+  completeExecution: () => {},
+  resetCrisisWorkflow: () => {},
+};
+
+// ─── Context ──────────────────────────────────────────────────────────────────
+
+const WorkflowContext = createContext<WorkflowContextValue>(DEFAULT_WORKFLOW_CONTEXT);
 
 interface PersistedState {
   workflowState: WorkflowState;
@@ -193,8 +203,5 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
 
 export function useWorkflow(): WorkflowContextValue {
   const ctx = useContext(WorkflowContext);
-  if (!ctx) {
-    throw new Error('useWorkflow must be used inside <WorkflowProvider>');
-  }
-  return ctx;
+  return ctx || DEFAULT_WORKFLOW_CONTEXT;
 }

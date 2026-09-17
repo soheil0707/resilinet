@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, ArrowRight, Lock, Mail, User, Briefcase, Building, AlertCircle } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Lock, Mail, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { UserRole } from '@/lib/supabase/types';
 
@@ -56,8 +56,11 @@ export default function SignupPage() {
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-lg">
         <div className="bg-white py-8 px-6 shadow-sm rounded-lg border border-slate-200 sm:px-10 space-y-5">
           {!isConfigured && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded text-xs leading-relaxed">
-              <span className="font-bold">Offline Demo Mode:</span> To enable real user account creation, configure <code className="font-mono bg-amber-100 px-1 py-0.5 rounded">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="font-mono bg-amber-100 px-1 py-0.5 rounded">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="font-mono bg-amber-100 px-1 py-0.5 rounded">.env.local</code>.
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-lg text-xs leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Supabase Setup Required:</span> Live user registration requires <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">.env.local</code>.
+              </div>
             </div>
           )}
 
@@ -190,18 +193,13 @@ export default function SignupPage() {
             </button>
           </form>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
+            <span>Already have an authorized account? </span>
             <Link
               href="/login"
               className="text-sky-600 hover:text-sky-700 font-semibold"
             >
-              Already have an account? Sign In
-            </Link>
-            <Link
-              href="/"
-              className="text-slate-500 hover:text-slate-800 font-medium"
-            >
-              Back to Dashboard →
+              Sign In
             </Link>
           </div>
         </div>
