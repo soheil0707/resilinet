@@ -1,0 +1,94 @@
+# ResiliNet — Technical Architecture
+
+## Project
+ResiliNet — AI-Powered Supply Chain Crisis Orchestrator
+
+## Hackathon
+SAP Hackfest 2026 — Resilient Supply Chains
+
+## Industry
+Automotive Manufacturing
+
+## Frontend
+Next.js
+TypeScript
+Tailwind CSS
+
+## Backend
+Next.js server-side API routes/server functions
+
+## Database
+Supabase PostgreSQL
+
+## Authentication
+Supabase Auth
+
+## AI
+Gemini API
+
+## AI Agents
+- Procurement Agent
+- Inventory Agent
+- Production Agent
+- Logistics Agent
+- Finance Agent
+- Customer Impact Agent
+
+## Decision Layer
+ResiliNet Decision Orchestrator
+
+## Decision Scoring
+Recovery Time: 30%
+Revenue Protected: 25%
+Cost: 20%
+Risk: 15%
+Customer Impact: 10%
+
+## SAP
+SAP BTP / SAP Integration Suite / relevant SAP APIs
+
+## Repository
+GitHub
+
+## Deployment
+Vercel
+
+## Core Workflow
+
+Detect
+→ Understand
+→ Simulate
+→ Coordinate
+→ Decide
+→ Approve
+→ Recover
+→ Measure
+→ Learn
+
+## Main Demo Scenario
+
+Supplier S-104 becomes unavailable for 10 days.
+
+Material:
+M-101 — Steering Assembly
+
+Plant:
+PL-01 — Hyderabad Assembly Plant
+
+Initial Revenue at Risk:
+₹27.4L
+
+Target Recovery Result:
+Revenue at Risk reduced to approximately ₹3.2L
+
+## Human-in-the-loop
+
+AI recommendations must not automatically execute critical business decisions.
+
+A Supply Chain Manager reviews and approves the recommended recovery strategy.
+
+## Prototype SAP Approach
+
+The hackathon prototype may use synthetic enterprise data and simulated SAP actions.
+
+The production architecture will support authorized SAP workflows/APIs through SAP BTP/integration services.
