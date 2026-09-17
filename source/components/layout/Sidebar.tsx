@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   AlertOctagon,
+  AlertTriangle,
   Network,
   Activity,
   Bot,
@@ -38,6 +39,12 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Executive Dashboard',
     href: '/',
     icon: LayoutDashboard,
+  },
+  {
+    label: 'Early Warning',
+    href: '/early-warning',
+    icon: AlertTriangle,
+    badge: { text: 'Alert', variant: 'warning' },
   },
   {
     label: 'Disruptions',

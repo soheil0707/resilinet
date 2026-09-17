@@ -36,6 +36,8 @@ export function Header() {
     switch (pathname) {
       case '/':
         return 'Executive Dashboard';
+      case '/early-warning':
+        return 'Pre-Crisis Risk Detection & Early Warning';
       case '/disruptions':
         return 'Disruption Center';
       case '/supply-chain-map':

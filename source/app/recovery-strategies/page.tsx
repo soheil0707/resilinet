@@ -25,10 +25,10 @@ const WEIGHTS = [
 ];
 
 const STRATEGY_DETAILS = [
-  { id: 'STRAT-001', costLabel: '₹1.2L', timeLabel: '7 days', protectedLabel: '₹14.5L', risk: 'MEDIUM', altLabel: 'Bharat Precision, Pune (Tier-2 AVL vendor)' },
-  { id: 'STRAT-002', costLabel: '₹0.8L', timeLabel: '4 days', protectedLabel: '₹19.2L', risk: 'LOW',    altLabel: 'PL-02 Chennai → PL-01 Hyderabad (180 units STO)' },
-  { id: 'STRAT-003', costLabel: '₹2.6L', timeLabel: '2 days', protectedLabel: '₹21.5L', risk: 'LOW',    altLabel: 'Priority air cargo from Jamshedpur buffer (100 units)' },
   { id: 'STRAT-004', costLabel: '₹2.1L', timeLabel: '1 day',  protectedLabel: '₹24.2L', risk: 'LOW',    altLabel: 'Air dispatch (100 u) + Chennai road express (120 u)' },
+  { id: 'STRAT-003', costLabel: '₹2.6L', timeLabel: '2 days', protectedLabel: '₹21.5L', risk: 'LOW',    altLabel: 'Priority air cargo from Jamshedpur buffer (100 units)' },
+  { id: 'STRAT-002', costLabel: '₹0.8L', timeLabel: '4 days', protectedLabel: '₹19.2L', risk: 'LOW',    altLabel: 'PL-02 Chennai → PL-01 Hyderabad (180 units STO)' },
+  { id: 'STRAT-001', costLabel: '₹1.2L', timeLabel: '7 days', protectedLabel: '₹14.5L', risk: 'MEDIUM', altLabel: 'Bharat Precision, Pune (Tier-2 AVL vendor)' },
 ];
 
 function riskBadge(risk: string) {
@@ -41,7 +41,7 @@ export default function RecoveryStrategiesPage() {
   const { setApprovedStrategy, setWorkflowState } = useWorkflow();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const strategies = DEMO_RECOVERY_STRATEGIES;
+  const strategies = [...DEMO_RECOVERY_STRATEGIES].sort((a, b) => b.overall_score - a.overall_score);
 
   function handleSelectForApproval(stratId: string) {
     const strat = strategies.find((s) => s.id === stratId);

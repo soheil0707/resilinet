@@ -298,43 +298,23 @@ export const DEMO_DASHBOARD_METRICS: DashboardMetrics = {
 
 export const DEMO_RECOVERY_STRATEGIES: RecoveryStrategy[] = [
   {
-    id: 'STRAT-001',
+    id: 'STRAT-004',
     disruption_id: 'DIS-2026-001',
-    name: 'Alternate Supplier (Bharat Precision)',
-    strategy_type: 'ALTERNATE_SOURCING',
-    cost_inr: 120000,
-    recovery_time_days: 7,
-    revenue_protected_inr: 1450000,
-    risk_level: 'MEDIUM',
-    overall_score: 68.5,
-    is_recommended: false,
-    description: 'Contract emergency batch from qualified secondary supplier Bharat Precision Pune.',
-    score_breakdown: {
-      recovery_time_score: 50,
-      revenue_score: 60,
-      cost_score: 90,
-      risk_score: 70,
-      customer_score: 65,
-    },
-  },
-  {
-    id: 'STRAT-002',
-    disruption_id: 'DIS-2026-001',
-    name: 'Inventory Transfer (Chennai PL-02)',
-    strategy_type: 'STOCK_TRANSFER',
-    cost_inr: 80000,
-    recovery_time_days: 4,
-    revenue_protected_inr: 1920000,
+    name: 'Combined Recovery (Multi-Modal Transfer + Priority Air)',
+    strategy_type: 'COMBINED',
+    cost_inr: 210000,
+    recovery_time_days: 1,
+    revenue_protected_inr: 2420000,
     risk_level: 'LOW',
-    overall_score: 82.0,
-    is_recommended: false,
-    description: 'Transfer 180 safety stock units of M-101 from PL-02 Chennai to PL-01 Hyderabad via road express.',
+    overall_score: 94.0,
+    is_recommended: true,
+    description: 'Overnight road express of 120 units from PL-02 Chennai + priority air dispatch of 100 units buffer from S-104.',
     score_breakdown: {
-      recovery_time_score: 75,
-      revenue_score: 80,
-      cost_score: 95,
-      risk_score: 90,
-      customer_score: 80,
+      recovery_time_score: 98,
+      revenue_score: 95,
+      cost_score: 88,
+      risk_score: 92,
+      customer_score: 96,
     },
   },
   {
@@ -358,23 +338,43 @@ export const DEMO_RECOVERY_STRATEGIES: RecoveryStrategy[] = [
     },
   },
   {
-    id: 'STRAT-004',
+    id: 'STRAT-002',
     disruption_id: 'DIS-2026-001',
-    name: 'Combined Recovery (Multi-Modal Transfer + Priority Air)',
-    strategy_type: 'COMBINED',
-    cost_inr: 210000,
-    recovery_time_days: 1,
-    revenue_protected_inr: 2420000,
+    name: 'Inventory Transfer (Chennai PL-02)',
+    strategy_type: 'STOCK_TRANSFER',
+    cost_inr: 80000,
+    recovery_time_days: 4,
+    revenue_protected_inr: 1920000,
     risk_level: 'LOW',
-    overall_score: 94.0,
-    is_recommended: true,
-    description: 'Overnight road express of 120 units from PL-02 Chennai + priority air dispatch of 100 units buffer from S-104.',
+    overall_score: 82.0,
+    is_recommended: false,
+    description: 'Transfer 180 safety stock units of M-101 from PL-02 Chennai to PL-01 Hyderabad via road express.',
     score_breakdown: {
-      recovery_time_score: 98,
-      revenue_score: 95,
-      cost_score: 88,
-      risk_score: 92,
-      customer_score: 96,
+      recovery_time_score: 75,
+      revenue_score: 80,
+      cost_score: 95,
+      risk_score: 90,
+      customer_score: 80,
+    },
+  },
+  {
+    id: 'STRAT-001',
+    disruption_id: 'DIS-2026-001',
+    name: 'Alternate Supplier (Bharat Precision)',
+    strategy_type: 'ALTERNATE_SOURCING',
+    cost_inr: 120000,
+    recovery_time_days: 7,
+    revenue_protected_inr: 1450000,
+    risk_level: 'MEDIUM',
+    overall_score: 68.5,
+    is_recommended: false,
+    description: 'Contract emergency batch from qualified secondary supplier Bharat Precision Pune.',
+    score_breakdown: {
+      recovery_time_score: 50,
+      revenue_score: 60,
+      cost_score: 90,
+      risk_score: 70,
+      customer_score: 65,
     },
   },
 ];
@@ -392,3 +392,198 @@ export const DEMO_RESILIENCE_MEMORY: ResilienceMemoryItem[] = [
     recorded_at: '2025-11-12T14:00:00Z',
   },
 ];
+
+export interface EarlyWarningRisk {
+  riskId: string;
+  supplier: {
+    id: string;
+    name: string;
+    code: string;
+    location: string;
+    status: string;
+    reliabilityHistorical: number;
+    reliabilityCurrent: number;
+  };
+  material: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    criticality: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  };
+  plant: {
+    id: string;
+    code: string;
+    name: string;
+    location: string;
+  };
+  severity: 'HIGH' | 'CRITICAL' | 'MEDIUM' | 'LOW';
+  status: 'EARLY_WARNING_ACTIVE' | 'UNDER_REVIEW' | 'MITIGATION_PREPARED' | 'DISMISSED';
+  detectedAt: string;
+  signals: Array<{
+    id: string;
+    name: string;
+    value: string;
+    baseline: string;
+    status: 'CRITICAL' | 'WARNING' | 'ALERT';
+    description: string;
+  }>;
+  dependencyChain: {
+    supplier: string;
+    material: string;
+    inventory: string;
+    plant: string;
+    production: string;
+    customer: string;
+  };
+  assessment: {
+    probabilityPct: number;
+    businessImpact: string;
+    revenueExposureInr: number;
+    productionOrdersCount: number;
+    customerOrdersCount: number;
+  };
+  preventiveRecommendations: Array<{
+    id: string;
+    title: string;
+    category: string;
+    action: string;
+    leadTime: string;
+    costEstimate: string;
+    readiness: 'READY' | 'REQUIRES_PO' | 'DISPATCH_PENDING';
+  }>;
+}
+
+export const DEMO_EARLY_WARNING_RISK: EarlyWarningRisk = {
+  riskId: 'EW-2026-089',
+  supplier: {
+    id: 'S-104',
+    name: 'Global Metals Ltd.',
+    code: 'SUP-104',
+    location: 'Jamshedpur, Jharkhand',
+    status: 'SHUTDOWN_RISK',
+    reliabilityHistorical: 98.0,
+    reliabilityCurrent: 88.0,
+  },
+  material: {
+    id: 'M-101',
+    code: 'MAT-STR-101',
+    name: 'Steering Assembly',
+    category: 'Chassis / Control Systems',
+    criticality: 'CRITICAL',
+  },
+  plant: {
+    id: 'PL-01',
+    code: 'PLT-HYD-01',
+    name: 'PL-01 Hyderabad Assembly Plant',
+    location: 'Hyderabad, Telangana',
+  },
+  severity: 'HIGH',
+  status: 'EARLY_WARNING_ACTIVE',
+  detectedAt: '16-Sep-2026 14:32 IST (36 hours prior to shutdown)',
+  signals: [
+    {
+      id: 'SIG-01',
+      name: 'Supplier Delivery Reliability Deterioration',
+      value: '88.0%',
+      baseline: '98.0% historical baseline',
+      status: 'CRITICAL',
+      description: 'Consecutive batch delivery punctuality dropped by 10% over the trailing 3 dispatch cycles from Jamshedpur facility.',
+    },
+    {
+      id: 'SIG-02',
+      name: 'Increasing Shipment Delay Trend',
+      value: '+2.8 Days',
+      baseline: 'Zero delay tolerance',
+      status: 'WARNING',
+      description: 'Average line-haul transit delay expanded from 0.4 to 3.2 days across eastern freight corridor checkpoints.',
+    },
+    {
+      id: 'SIG-03',
+      name: 'Inventory Buffer Coverage',
+      value: '2.4 Days',
+      baseline: '5.0 Days target safety stock',
+      status: 'CRITICAL',
+      description: 'On-hand stock at Hyderabad dropped to 240 units against a 100 units/day burn rate, threatening safety buffer breach.',
+    },
+    {
+      id: 'SIG-04',
+      name: 'Supplier Operating Status',
+      value: 'Warning / Shutdown Risk',
+      baseline: 'Healthy operational baseline',
+      status: 'ALERT',
+      description: 'Preliminary telemetry indicates scheduled furnace overhaul and pending environmental audits at supplier plant.',
+    },
+    {
+      id: 'SIG-05',
+      name: 'Component Criticality Level',
+      value: 'CRITICAL (Tier-1)',
+      baseline: 'Chassis line dependency',
+      status: 'CRITICAL',
+      description: 'M-101 Steering Assembly is a non-substitutable direct component for all 17 active Hyderabad production orders.',
+    },
+  ],
+  dependencyChain: {
+    supplier: 'Global Metals Ltd. (S-104) [Jamshedpur]',
+    material: 'Steering Assembly (M-101) [Tier-1]',
+    inventory: '240 Units / 2.4 Days [Safety: 5.0 Days]',
+    plant: 'PL-01 Hyderabad Assembly [88.5% Util]',
+    production: '17 Assembly Orders [Lines 1 & 2]',
+    customer: '20 Fleet & Dealership Orders [SLA Risk]',
+  },
+  assessment: {
+    probabilityPct: 78,
+    businessImpact: 'Severe Operational Interruption & Potential Customer Penalty Exposure',
+    revenueExposureInr: 2740000,
+    productionOrdersCount: 17,
+    customerOrdersCount: 20,
+  },
+  preventiveRecommendations: [
+    {
+      id: 'REC-01',
+      title: 'Increase Safety Stock Buffer',
+      category: 'Inventory Buffering',
+      action: 'Issue emergency purchase requisition to expand buffer threshold from 500 to 700 units across regional hubs.',
+      leadTime: 'Immediate (SAP MM)',
+      costEstimate: '₹0.5L working capital buffer',
+      readiness: 'READY',
+    },
+    {
+      id: 'REC-02',
+      title: 'Alternate Supplier Secondary Allocation',
+      category: 'Procurement Resiliency',
+      action: 'Trigger standby quota allocation with pre-qualified AVL vendor Bharat Precision (Pune) for 220 steering units.',
+      leadTime: '48 Hours activation',
+      costEstimate: '₹1.2L contracted rate',
+      readiness: 'READY',
+    },
+    {
+      id: 'REC-03',
+      title: 'Pre-Position Inter-Plant Inventory',
+      category: 'Stock Balancing',
+      action: 'Issue pre-emptive Stock Transport Order (STO) from PL-02 Chennai (which maintains 5.6 days surplus coverage).',
+      leadTime: '36 Hours road express',
+      costEstimate: '₹0.8L logistics cost',
+      readiness: 'READY',
+    },
+    {
+      id: 'REC-04',
+      title: 'Reserve Expedited Logistics Capacity',
+      category: 'Freight Readiness',
+      action: 'Place tentative air freight charter booking on Jamshedpur → Hyderabad lane to safeguard against total line stoppage.',
+      leadTime: '24 Hours charter lock',
+      costEstimate: '₹1.3L standby rate',
+      readiness: 'REQUIRES_PO',
+    },
+    {
+      id: 'REC-05',
+      title: 'Review Production Order Allocation',
+      category: 'Shopfloor Scheduling',
+      action: 'Re-sequence assembly line scheduling to prioritize high-margin EV-X Prime orders and buffer delivery commitments.',
+      leadTime: '12 Hours shift change',
+      costEstimate: 'Zero direct cost',
+      readiness: 'READY',
+    },
+  ],
+};
+
