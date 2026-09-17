@@ -113,25 +113,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isConfigured) {
+      setIsLoading(false);
       return;
     }
 
     const supabase = createClient();
     if (!supabase) {
+      setIsLoading(false);
       return;
     }
 
+    // Safety timeout: guarantees isLoading never hangs indefinitely on network delay
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
     // Check active session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfileAndValidate(session.user.id, session.user.user_metadata);
-      } else {
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfileAndValidate(session.user.id, session.user.user_metadata);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      })
+      .catch((err) => {
+        console.warn('Session verification caught error:', err);
         setUser(null);
         setProfile(null);
-      }
-      setIsLoading(false);
-    });
+      })
+      .finally(() => {
+        clearTimeout(safetyTimer);
+        setIsLoading(false);
+      });
 
     const {
       data: { subscription },
@@ -147,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, [isConfigured]);

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   BookOpen,
   TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 
 const LEARNINGS = [
@@ -27,10 +28,20 @@ function formatInr(val: number): string {
 }
 
 export default function ResilienceMemoryPage() {
-  const { workflowState, approvedStrategy, resetCrisisWorkflow } = useWorkflow();
+  const { workflowState, approvedStrategy, selectedStrategy, isOverride, resilienceRecords, executionSteps, resetCrisisWorkflow } = useWorkflow();
 
   const priorMemory = DEMO_RESILIENCE_MEMORY;
   const showNewEntry = workflowState === 'RECOVERED';
+  const activeStrategy = approvedStrategy || selectedStrategy;
+  const executedRecord = resilienceRecords.length > 0 ? resilienceRecords[0] : null;
+
+  const isHumanOverride = executedRecord ? executedRecord.is_override : (isOverride || (activeStrategy ? activeStrategy.id !== 'STRAT-004' : false));
+  const aiRecommended = 'Combined Recovery (Multi-Modal Transfer + Priority Air)';
+  const humanDecision = executedRecord ? executedRecord.human_selected_strategy : (activeStrategy?.name || 'Combined Recovery');
+  const recoveryTime = executedRecord ? executedRecord.recovery_time_days : (activeStrategy?.recovery_time_days || 1);
+  const costInr = executedRecord ? executedRecord.cost_inr : (activeStrategy?.cost_inr || 210000);
+  const revProtected = executedRecord ? executedRecord.revenue_protected_inr : (activeStrategy?.revenue_protected_inr || 2420000);
+  const riskLevel = executedRecord ? executedRecord.risk_level : (activeStrategy?.risk_level || 'LOW');
 
   return (
     <EnterpriseShell>
@@ -55,8 +66,8 @@ export default function ResilienceMemoryPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: 'Crisis Records', value: showNewEntry ? '2' : '1', color: 'text-slate-800' },
-            { label: 'Avg Success Score', value: showNewEntry ? '92.5' : '91.0', color: 'text-emerald-700' },
-            { label: 'Total Loss Avoided', value: showNewEntry ? '₹43.0L' : '₹18.6L', color: 'text-emerald-700' },
+            { label: 'Avg Success Score', value: showNewEntry ? (activeStrategy?.overall_score.toFixed(1) || '92.5') : '91.0', color: 'text-emerald-700' },
+            { label: 'Total Loss Avoided', value: showNewEntry ? formatInr(1860000 + revProtected) : '₹18.6L', color: 'text-emerald-700' },
             { label: 'Playbooks Extracted', value: showNewEntry ? '10' : '5', color: 'text-sky-700' },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-lg border border-slate-200 p-3.5 text-center">
@@ -72,24 +83,63 @@ export default function ResilienceMemoryPage() {
             <div className="p-4 border-b border-emerald-200 bg-emerald-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-bold text-emerald-900">NEW ENTRY — Just Recorded</span>
+                <span className="text-xs font-bold text-emerald-900">NEW ENTRY — Crisis Successfully Recovered & Recorded</span>
               </div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white">
-                Success Score: 94.0 / 100
-              </span>
+              <div className="flex items-center gap-2">
+                {isHumanOverride && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-600" />
+                    Human Override Recorded
+                  </span>
+                )}
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white">
+                  Score: {activeStrategy?.overall_score.toFixed(1) || '94.0'} / 100
+                </span>
+              </div>
             </div>
+
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm font-bold text-slate-900">Global Metals Ltd. (S-104) Supplier Shutdown — DIS-2026-001</p>
-                <span className="text-[10px] text-slate-400">Recorded: {new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Global Metals Ltd. (S-104) Supplier Shutdown — DIS-2026-001</p>
+                  <p className="text-xs text-slate-500">Material: Steering Assembly (M-101) · Plant: PL-01 Hyderabad Assembly</p>
+                </div>
+                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-emerald-200">
+                  Status: COMPLETED
+                </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              {/* Decision Breakdown (AI vs Human) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white p-3.5 rounded-lg border border-emerald-200">
+                <div className="space-y-1 border-r border-slate-100 pr-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">AI Recommendation</p>
+                  <p className="text-xs font-bold text-slate-800">{aiRecommended}</p>
+                </div>
+                <div className="space-y-1 pl-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Human Decision & Executed Strategy</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-emerald-800">{humanDecision}</p>
+                    {isHumanOverride ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                        Override: Yes
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Override: No
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI Summary Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                 {[
-                  { label: 'Root Cause',         value: 'Unplanned blast furnace refractory stoppage at Jamshedpur' },
-                  { label: 'Selected Strategy',  value: approvedStrategy?.name || 'Combined Recovery (Multi-Modal)' },
-                  { label: 'Delay Mitigated',    value: '7 Days → 1 Day' },
-                  { label: 'Loss Avoided',       value: formatInr(approvedStrategy?.revenue_protected_inr || 2420000) },
+                  { label: 'Executed Strategy', value: humanDecision },
+                  { label: 'Recovery Cost',      value: formatInr(costInr) },
+                  { label: 'Recovery Time',      value: `${recoveryTime} ${recoveryTime === 1 ? 'Day' : 'Days'}` },
+                  { label: 'Revenue Protected',  value: formatInr(revProtected) },
+                  { label: 'Risk Level',         value: `${riskLevel} RISK` },
                 ].map((item) => (
                   <div key={item.label} className="bg-white rounded border border-emerald-200 p-3">
                     <p className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">{item.label}</p>
@@ -98,21 +148,17 @@ export default function ResilienceMemoryPage() {
                 ))}
               </div>
 
-              {/* SAP Actions Executed */}
+              {/* Executed Action Steps */}
               <div className="bg-white rounded-lg border border-emerald-200 p-4 space-y-2">
-                <p className="text-xs font-bold text-slate-700 mb-2">SAP Actions Executed</p>
-                {[
-                  { module: 'SAP MM',  ref: 'PR-45009101',   desc: 'Alternate Sourcing PR — Bharat Precision (Pune)' },
-                  { module: 'SAP EWM', ref: 'STO-881203',    desc: 'Stock Transport Order — Chennai → Hyderabad (120 units)' },
-                  { module: 'SAP TM',  ref: 'FO-9021-AIR',   desc: 'Priority Air Freight — Jamshedpur Buffer (100 units)' },
-                  { module: 'SAP PP',  ref: 'CO02-HYD-7710', desc: 'Assembly Line Reschedule — PL-01 Hyderabad' },
-                  { module: 'SAP SD',  ref: 'VA02-ALLOC-221', desc: 'Customer Order Re-confirmation — 20 Fleet Orders' },
-                ].map((a) => (
-                  <div key={a.ref} className="flex items-start gap-2 text-xs">
+                <p className="text-xs font-bold text-slate-700 mb-2">
+                  Executed Strategy Steps ({executionSteps.length} Actions)
+                </p>
+                {executionSteps.map((a) => (
+                  <div key={a.id} className="flex items-start gap-2 text-xs">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
                     <span className="font-mono text-slate-400 w-20 shrink-0">{a.module}</span>
-                    <span className="font-mono text-slate-500 w-28 shrink-0">{a.ref}</span>
-                    <span className="text-slate-700">{a.desc}</span>
+                    <span className="font-mono text-slate-500 w-28 shrink-0">{a.reference}</span>
+                    <span className="text-slate-700 font-medium">{a.action}</span>
                   </div>
                 ))}
               </div>
@@ -183,7 +229,7 @@ export default function ResilienceMemoryPage() {
           {showNewEntry && (
             <button
               onClick={resetCrisisWorkflow}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-bold rounded-md transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-bold rounded-md transition cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Reset Demo Scenario

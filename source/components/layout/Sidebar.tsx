@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -21,6 +22,7 @@ import {
   Building2,
   ChevronRight,
   LogOut,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 
@@ -100,6 +102,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: Database,
   },
   {
+    label: 'Integration Hub',
+    href: '/integration-hub',
+    icon: Layers,
+  },
+  {
     label: 'Settings',
     href: '/settings',
     icon: Settings,
@@ -121,20 +128,24 @@ export function Sidebar() {
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 h-screen sticky top-0 select-none z-30">
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-slate-50/50">
-        <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold shadow-sm ring-1 ring-slate-800">
-          <ShieldCheck className="w-5 h-5 text-sky-400" />
+        <div className="relative w-9 h-9 shrink-0 flex items-center justify-center">
+          <Image
+            src="/resilinet-logo.png"
+            alt="ResiliNet Logo"
+            width={36}
+            height={36}
+            className="w-9 h-9 object-contain"
+            priority
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-slate-900 text-sm tracking-tight truncate">
               ResiliNet
             </span>
-            <span className="text-[10px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded">
-              SAP
-            </span>
           </div>
-          <p className="text-xs text-slate-500 truncate flex items-center gap-1">
-            <Building2 className="w-3 h-3 shrink-0" />
+          <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
+            <Building2 className="w-3 h-3 shrink-0 text-slate-400" />
             Astra Motors
           </p>
         </div>

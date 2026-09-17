@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, ArrowRight, Lock, Mail, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -42,8 +43,15 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-2">
-        <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center mx-auto shadow-md">
-          <ShieldCheck className="w-7 h-7 text-sky-400" />
+        <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+          <Image
+            src="/resilinet-logo.png"
+            alt="ResiliNet Logo"
+            width={64}
+            height={64}
+            className="w-16 h-16 object-contain"
+            priority
+          />
         </div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">
           Create Corporate Profile

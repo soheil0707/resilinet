@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/lib/auth/auth-context';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export function EnterpriseShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -20,8 +21,15 @@ export function EnterpriseShell({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3 select-none">
-        <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-md ring-1 ring-slate-800">
-          <ShieldCheck className="w-7 h-7 text-sky-400" />
+        <div className="relative w-14 h-14 flex items-center justify-center">
+          <Image
+            src="/resilinet-logo.png"
+            alt="ResiliNet"
+            width={56}
+            height={56}
+            className="w-14 h-14 object-contain"
+            priority
+          />
         </div>
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
           <Loader2 className="w-4 h-4 animate-spin text-sky-600" />

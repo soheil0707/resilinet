@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { Disruption } from '@/lib/supabase/types';
+import { useWorkflow } from '@/lib/workflow/workflow-context';
 
 interface CriticalDisruptionBannerProps {
   disruption: Disruption;
@@ -24,19 +25,18 @@ export function CriticalDisruptionBanner({
   disruption,
 }: CriticalDisruptionBannerProps) {
   const router = useRouter();
+  const { setWorkflowState } = useWorkflow();
   const [isActivating, setIsActivating] = useState(false);
   const [showActivatedModal, setShowActivatedModal] = useState(false);
 
   const handleActivateCrisis = () => {
-    setIsActivating(true);
-    setTimeout(() => {
-      setIsActivating(false);
-      setShowActivatedModal(true);
-    }, 600);
+    setWorkflowState('CRISIS_ACTIVE');
+    setShowActivatedModal(true);
   };
 
   const proceedToAnalysis = () => {
     setShowActivatedModal(false);
+    setWorkflowState('CRISIS_ACTIVE');
     router.push('/crisis-analysis');
   };
 
@@ -185,8 +185,14 @@ export function CriticalDisruptionBanner({
 
       {/* Activation Confirmation Modal */}
       {showActivatedModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div
+          onClick={() => setShowActivatedModal(false)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center z-50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-lg border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+          >
             <div className="w-12 h-12 rounded-full bg-red-100 border border-red-200 flex items-center justify-center text-red-600 mx-auto">
               <ShieldAlert className="w-6 h-6" />
             </div>

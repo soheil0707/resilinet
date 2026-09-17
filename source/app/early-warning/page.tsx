@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { EnterpriseShell } from '@/components/layout/EnterpriseShell';
-import { DEMO_EARLY_WARNING_RISK, EarlyWarningRisk } from '@/lib/data/demo-data';
+import { DEMO_EARLY_WARNING_RISK, EarlyWarningRisk, DEMO_RECOVERY_STRATEGIES } from '@/lib/data/demo-data';
 import { useWorkflow } from '@/lib/workflow/workflow-context';
 import {
   AlertTriangle,
@@ -28,13 +28,30 @@ import {
   RotateCcw,
   Warehouse,
   Truck,
+  CloudRain,
+  Radio,
+  ExternalLink,
+  ShieldCheck,
+  Calendar,
+  AlertOctagon,
+  TrendingUp,
 } from 'lucide-react';
+
+const DECISION_WEIGHTS = [
+  { label: 'Recovery Time', weight: '30%', color: 'bg-sky-500' },
+  { label: 'Revenue Protected', weight: '25%', color: 'bg-emerald-500' },
+  { label: 'Cost Efficiency', weight: '20%', color: 'bg-violet-500' },
+  { label: 'Risk Level', weight: '15%', color: 'bg-amber-500' },
+  { label: 'Customer Impact', weight: '10%', color: 'bg-rose-500' },
+];
 
 export default function EarlyWarningPage() {
   const router = useRouter();
   const { setWorkflowState } = useWorkflow();
   const [riskData, setRiskData] = useState<EarlyWarningRisk>(DEMO_EARLY_WARNING_RISK);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showSimulationModal, setShowSimulationModal] = useState(false);
+  const [simulationHorizon, setSimulationHorizon] = useState<number>(48); // hours
   const [dismissed, setDismissed] = useState(false);
   const [mitigationInitiated, setMitigationInitiated] = useState(false);
 
@@ -42,9 +59,7 @@ export default function EarlyWarningPage() {
     setMitigationInitiated(true);
     // Connect to existing workflow without breaking it
     setWorkflowState('CRISIS_ACTIVE');
-    setTimeout(() => {
-      router.push('/recovery-strategies');
-    }, 600);
+    router.push('/recovery-strategies');
   };
 
   const handleDismissRisk = () => {
@@ -64,7 +79,8 @@ export default function EarlyWarningPage() {
   return (
     <EnterpriseShell>
       <div className="space-y-6">
-        {/* ── Top Header & Context Banner ─────────────────────── */}
+
+        {/* ── 1. Page Header ────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-4">
@@ -85,457 +101,320 @@ export default function EarlyWarningPage() {
                     Detected: {riskData.detectedAt}
                   </span>
                 </div>
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight mt-1">
-                  Pre-Crisis Risk Detection & Early Warning
+                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
+                  Early Warning Center
                 </h1>
                 <p className="text-xs text-slate-600 mt-1 max-w-3xl">
-                  AI-assisted risk assessment synthesizing internal enterprise signals from SAP ERP, inventory coverage rates, and carrier transit times to highlight emerging supplier volatility prior to total shutdown.
+                  Predict and prepare for supply-chain disruptions before they impact operations.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowSimulationModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Sliders className="w-4 h-4" />
+                <span>Run Preventive Simulation</span>
+              </button>
+
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                {dismissed ? 'Signal Dismissed (Logged)' : mitigationInitiated ? 'Mitigation Hand-off Active' : 'Signal Active: Elevated Risk'}
+                {dismissed ? 'Signal Dismissed (Logged)' : mitigationInitiated ? 'Mitigation Hand-off Active' : 'Early Warning Active'}
               </span>
             </div>
           </div>
 
-          {/* Compliance & Methodological Note */}
-          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
-            <Info className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>
-              <strong>Methodology Note:</strong> This early warning signal represents an AI-assisted risk assessment derived from historical dispatch patterns and threshold variance. No external unverified feeds or deterministic future predictions are claimed.
-            </span>
-          </div>
-        </div>
-
-        {/* ── Section 1: Risk Overview ────────────────────────── */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-slate-700" />
-              <span>1. Risk Overview</span>
-            </h2>
-            <span className="text-[11px] font-mono text-slate-400">
-              Corpus: Astra Motors Manufacturing (PL-01 Hyderabad)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Risk ID</p>
-              <p className="text-xs font-mono font-bold text-slate-900 mt-0.5">{riskData.riskId}</p>
-              <p className="text-[10px] text-slate-500 mt-1">Pre-crisis registry</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Supplier</p>
-              <p className="text-xs font-bold text-slate-900 mt-0.5 truncate">{riskData.supplier.name}</p>
-              <p className="text-[10px] text-slate-500 mt-1 font-mono">{riskData.supplier.id} • {riskData.supplier.location.split(',')[0]}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Material</p>
-              <p className="text-xs font-bold text-slate-900 mt-0.5 truncate">{riskData.material.name}</p>
-              <p className="text-[10px] text-slate-500 mt-1 font-mono">{riskData.material.code}</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Assembly Plant</p>
-              <p className="text-xs font-bold text-slate-900 mt-0.5">PL-01 Hyderabad</p>
-              <p className="text-[10px] text-slate-500 mt-1 font-mono">Lines 1 & 2</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Severity Level</p>
-              <span className="inline-block mt-0.5 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                HIGH SEVERITY
+          {/* Mission Banner */}
+          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-700">
+              <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 font-bold border border-sky-200 text-[11px]">
+                Core Objective
               </span>
-              <p className="text-[10px] text-slate-500 mt-1">Criticality tier 1</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Operating Status</p>
-              <span className={`inline-block mt-0.5 text-xs font-bold px-2 py-0.5 rounded border ${
-                dismissed
-                  ? 'bg-slate-100 text-slate-700 border-slate-300'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}>
-                {dismissed ? 'DISMISSED' : 'EARLY_WARNING'}
+              <span className="font-semibold text-slate-900">
+                &ldquo;Detect supply-chain risks BEFORE they become operational crises.&rdquo;
               </span>
-              <p className="text-[10px] text-slate-500 mt-1">Telemetry active</p>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+              <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>AI-assisted risk assessment derived from internal SAP inventory &amp; lead-time variance.</span>
             </div>
           </div>
         </div>
 
-        {/* ── Section 2: Risk Signals ─────────────────────────── */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-sky-600" />
-                <span>2. Risk Signals & Indicators</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Observed enterprise variances triggering early warning escalation
+        {/* ── 2. Overall Risk Summary (KPI Cards) ──────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* KPI 1: Supply Chain Risk */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Supply Chain Risk</p>
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <p className="text-2xl font-black text-red-600 font-mono">HIGH</p>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">Tier-1 supplier volatility</p>
+          </div>
+
+          {/* KPI 2: Suppliers at Risk */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Suppliers at Risk</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono">1</p>
+              <span className="text-[11px] text-slate-600 font-medium">S-104 (Global Metals)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1 font-mono">Jamshedpur Facility</p>
+          </div>
+
+          {/* KPI 3: Materials at Risk */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Materials at Risk</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono">1</p>
+              <span className="text-[11px] text-slate-600 font-medium truncate">M-101 (Steering)</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">Chassis critical component</p>
+          </div>
+
+          {/* KPI 4: Potential Revenue Exposure */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Potential Revenue Exposure</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-black text-red-600 font-mono">₹27.4L</p>
+              <span className="text-[10px] text-red-700 font-semibold bg-red-50 px-1.5 py-0.5 rounded">At Risk</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1 font-mono">₹2,740,000 INR exposure</p>
+          </div>
+
+          {/* KPI 5: Earliest Risk Horizon */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs col-span-2 sm:col-span-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Earliest Risk Horizon</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-black text-amber-600 font-mono">2.4 Days</p>
+              <span className="text-[11px] text-amber-700 font-semibold">Stockout</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">240 units / 100 u daily burn</p>
+          </div>
+        </div>
+
+        {/* ── 7. Risk Status Contrast: Early Warning vs Crisis ──── */}
+        <div className="bg-gradient-to-r from-amber-50/70 via-white to-red-50/70 rounded-xl border border-amber-200/80 p-5 shadow-2xs">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-white font-mono">
+                  State Boundary
+                </span>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Risk Phase Classification: Early Warning vs. Operational Crisis
+                </h2>
+              </div>
+              <p className="text-xs text-slate-600">
+                ResiliNet enforces a strict distinction between proactive pre-crisis warning and confirmed operational shutdown.
               </p>
             </div>
-            <span className="text-xs text-slate-400 font-medium">5 Confluent Signals Detected</span>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="bg-white border-2 border-amber-400 rounded-lg px-3 py-2 text-center shadow-xs">
+                <div className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">CURRENT STATE</div>
+                <div className="text-xs font-extrabold text-amber-900 mt-0.5">EARLY WARNING</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">Potential disruption detected • Preventive action recommended</div>
+              </div>
+
+              <span className="text-slate-400 font-bold">→</span>
+
+              <div className="bg-white/70 border border-dashed border-red-300 rounded-lg px-3 py-2 text-center opacity-85">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ESCALATION THRESHOLD</div>
+                <div className="text-xs font-bold text-red-700 mt-0.5">CRISIS</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Disruption confirmed • Crisis response activated</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 3. Risk Signals Timeline & Card System ────────────── */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-sky-600" />
+                  <span>3. Risk Signals &amp; Indicator Timeline</span>
+                </h2>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  Supplier: S-104 Global Metals Ltd.
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Enterprise and external signals monitored across the Astra Motors supply chain.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <CheckCircle2 className="w-3 h-3" /> Enterprise Connected (SAP)
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                <Radio className="w-3 h-3" /> Integration Ready
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Signal 1: Reliability Deterioration */}
-            <div className="border border-red-200 bg-red-50/40 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-red-800 bg-red-100 px-2 py-0.5 rounded">
-                  Reliability Drop
-                </span>
-                <span className="text-xs font-mono font-extrabold text-red-700">98.0% → 88.0%</span>
-              </div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Supplier Delivery Reliability Deterioration
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Global Metals Ltd. (S-104) delivery punctuality deteriorated by 10.0% across the trailing 3 consecutive dispatch cycles, signaling operational strain at their Jamshedpur smelting unit.
-              </p>
-              <div className="pt-2 border-t border-red-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Baseline: 98.0%</span>
-                <span className="font-semibold text-red-600">-10.0% delta</span>
-              </div>
-            </div>
+            {riskData.signals.map((sig) => (
+              <div
+                key={sig.id}
+                className="border border-slate-200 rounded-xl p-4 bg-white hover:border-slate-300 transition shadow-2xs flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                      sig.signalSource === 'Enterprise Signal'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-sky-50 text-sky-800 border-sky-200'
+                    }`}>
+                      {sig.signalSource}
+                    </span>
 
-            {/* Signal 2: Delay Trend */}
-            <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                  Delay Trend
-                </span>
-                <span className="text-xs font-mono font-extrabold text-amber-700">+2.8 Days</span>
-              </div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Increasing Shipment Delay Trend
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Freight line-haul delay averaged +2.8 days over normal lead time (10 days). Recurring carrier exceptions reported on the eastern corridor checkpoint (Kolkata-Vizag-Hyderabad).
-              </p>
-              <div className="pt-2 border-t border-amber-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Expected: 10 Days</span>
-                <span className="font-semibold text-amber-700">Actual: 12.8 Days</span>
-              </div>
-            </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      sig.sourceConnection === 'Connected'
+                        ? 'bg-slate-100 text-slate-700'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {sig.sourceConnection}
+                    </span>
+                  </div>
 
-            {/* Signal 3: Inventory Coverage */}
-            <div className="border border-red-200 bg-red-50/40 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-red-800 bg-red-100 px-2 py-0.5 rounded">
-                  Buffer Exposure
-                </span>
-                <span className="text-xs font-mono font-extrabold text-red-700">2.4 Days</span>
-              </div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Inventory Coverage Buffer Depletion
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Hyderabad plant on-hand stock is down to 240 units of M-101. At current 100 units/day burn rate, inventory coverage is 2.4 days against an enterprise safety target of 5.0 days.
-              </p>
-              <div className="pt-2 border-t border-red-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Target: 5.0 Days</span>
-                <span className="font-semibold text-red-600">Deficit: -2.6 Days</span>
-              </div>
-            </div>
+                  <div className="mt-2.5">
+                    <h3 className="text-xs font-bold text-slate-900">{sig.name}</h3>
+                    <p className="text-[10px] font-mono text-slate-500 mt-0.5">{sig.sourceSystem}</p>
+                  </div>
 
-            {/* Signal 4: Supplier Status */}
-            <div className="border border-slate-200 bg-slate-50 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 bg-slate-200 px-2 py-0.5 rounded">
-                  Supplier Status
-                </span>
-                <span className="text-xs font-bold text-slate-800">Warning State</span>
-              </div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Supplier Operational Vulnerability
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Advance maintenance indicators show S-104 entering unplanned furnace repair and state environmental compliance audits, heightening probability of complete line shutdown.
-              </p>
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Entity: S-104</span>
-                <span className="font-semibold text-slate-700">Category: Steering Tier-1</span>
-              </div>
-            </div>
+                  <div className="mt-2 bg-slate-50 border border-slate-100 rounded-lg p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-500">Observed Value:</span>
+                      <span className="text-xs font-mono font-extrabold text-red-600">{sig.value}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
+                      <span>Baseline:</span>
+                      <span className="font-medium text-slate-600">{sig.baseline}</span>
+                    </div>
+                  </div>
 
-            {/* Signal 5: Material Criticality */}
-            <div className="border border-slate-200 bg-slate-50 rounded-xl p-4 space-y-2 md:col-span-2 lg:col-span-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-red-800 bg-red-100 px-2 py-0.5 rounded">
-                  Bottleneck Component
-                </span>
-                <span className="text-xs font-bold text-red-700">Criticality: CRITICAL</span>
+                  <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">
+                    {sig.description}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>{sig.timestamp}</span>
+                  <span className="font-mono text-slate-500">{sig.id}</span>
+                </div>
               </div>
-              <h3 className="text-xs font-bold text-slate-900">
-                Material Criticality & Line Interdependence
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                M-101 Steering Assembly is a non-substitutable direct assembly input. A stockout directly halts both EV-X Prime (Line 1) and Sierra Commercial (Line 2), impacting 17 scheduled work orders with zero in-process bypass.
-              </p>
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Unit Cost: ₹18,500</span>
-                <span className="font-semibold text-slate-700">Chassis Safety-Critical</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Section 3: Dependency Impact Chain ──────────────── */}
+        {/* ── 4. Risk Propagation (7-Stage Value Stream) ──────── */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-slate-700" />
-                <span>3. Dependency Impact Chain</span>
+                <span>4. Risk Propagation Chain</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Propagation path of the potential impact across the manufacturing hierarchy
+                Linear propagation path from upstream supplier volatility to final customer revenue exposure.
               </p>
             </div>
-            <span className="text-xs text-sky-700 font-semibold bg-sky-50 px-2.5 py-1 rounded border border-sky-200">
-              6-Stage Value Stream
+            <span className="text-xs text-sky-800 font-semibold bg-sky-50 px-2.5 py-1 rounded border border-sky-200">
+              Scenario: S-104 → M-101 → PL-01 Hyderabad
             </span>
           </div>
 
-          {/* Value stream visual */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-1">
-            {/* Stage 1: Supplier */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mb-2">
-                  <Building2 className="w-4 h-4" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-1">
+            {riskData.propagationStages.map((stage, idx) => (
+              <div
+                key={stage.stageNumber}
+                className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between relative hover:bg-slate-50/80 transition"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">
+                      Step {stage.stageNumber}
+                    </span>
+                    {idx < riskData.propagationStages.length - 1 && (
+                      <span className="hidden lg:inline text-slate-300 font-bold">→</span>
+                    )}
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900 mt-1">{stage.name}</h4>
+                  <p className="text-xs font-semibold text-slate-700 mt-1 leading-snug">{stage.entity}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{stage.detail}</p>
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 1</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Supplier</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">Global Metals (S-104)</p>
-                <p className="text-[10px] text-slate-500">Jamshedpur Smelter</p>
-              </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-amber-700">
-                Reliability: 88.0%
-              </div>
-            </div>
-
-            {/* Stage 2: Material */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mb-2">
-                  <Package className="w-4 h-4" />
+                <div className={`mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold ${
+                  stage.status === 'CRITICAL' ? 'text-red-700' :
+                  stage.status === 'WARNING' ? 'text-amber-700' : 'text-slate-700'
+                }`}>
+                  {stage.subtext}
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 2</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Material</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">Steering Assembly</p>
-                <p className="text-[10px] text-slate-500 font-mono">M-101 • Critical</p>
               </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-red-600">
-                Lead Time: 10+2.8d
-              </div>
-            </div>
-
-            {/* Stage 3: Inventory */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center mb-2">
-                  <Warehouse className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 3</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Inventory</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">240 Units On-Hand</p>
-                <p className="text-[10px] text-slate-500">Burn: 100 units/day</p>
-              </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-red-600">
-                Coverage: 2.4 Days
-              </div>
-            </div>
-
-            {/* Stage 4: Plant */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mb-2">
-                  <Factory className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 4</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Plant</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">PL-01 Hyderabad</p>
-                <p className="text-[10px] text-slate-500">Capacity: 120 u/day</p>
-              </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-slate-600">
-                Util: 88.5% Degraded
-              </div>
-            </div>
-
-            {/* Stage 5: Production */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center mb-2">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 5</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Production</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">17 Work Orders</p>
-                <p className="text-[10px] text-slate-500">EV-X & Sierra Lines</p>
-              </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-amber-700">
-                Risk of 7-Day Delay
-              </div>
-            </div>
-
-            {/* Stage 6: Customer */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between relative">
-              <div>
-                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center mb-2">
-                  <Users className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Stage 6</span>
-                <h4 className="text-xs font-bold text-slate-900 mt-0.5">Customer</h4>
-                <p className="text-xs text-slate-700 font-semibold mt-1">20 Fleet Orders</p>
-                <p className="text-[10px] text-slate-500">Commercial Fleets</p>
-              </div>
-              <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] font-semibold text-red-700">
-                Exposure: ₹27.4L
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Section 4: Risk Assessment ──────────────────────── */}
+        {/* ── 5. Preventive Recommendations (BEFORE Crisis) ─────── */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-slate-700" />
-                <span>4. AI-Assisted Risk Assessment</span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Calculated probabilistic exposure based on current inventory depletion and delay velocity
-              </p>
-            </div>
-            <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded">
-              High Disruption Probability
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Probability Metric */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                Disruption Probability
-              </span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-extrabold font-mono text-amber-600">
-                  {riskData.assessment.probabilityPct}%
-                </p>
-                <span className="text-xs font-semibold text-amber-700">High Risk</span>
-              </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full mt-3 overflow-hidden">
-                <div
-                  className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${riskData.assessment.probabilityPct}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                78% likelihood of assembly line pause within 48–72 hours without preventive intervention.
-              </p>
-            </div>
-
-            {/* Revenue Exposure */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                Potential Revenue Exposure
-              </span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-extrabold font-mono text-red-600">₹27.4L</p>
-                <span className="text-xs font-semibold text-red-700">At Risk</span>
-              </div>
-              <p className="text-xs text-slate-600 font-mono mt-3">₹2,740,000 INR</p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Direct finished vehicle delayed billings + contractual SLA late-delivery penalties.
-              </p>
-            </div>
-
-            {/* Production Exposure */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                Production Exposure
-              </span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-extrabold font-mono text-slate-900">
-                  {riskData.assessment.productionOrdersCount}
-                </p>
-                <span className="text-xs font-semibold text-slate-600">Work Orders</span>
-              </div>
-              <p className="text-xs text-slate-600 font-medium mt-3">Lines 1 & 2 at PL-01</p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                12 EV-X Prime + 5 Sierra Commercial chassis assembly orders scheduled this week.
-              </p>
-            </div>
-
-            {/* Customer Exposure */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                Customer Commitments
-              </span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-extrabold font-mono text-slate-900">
-                  {riskData.assessment.customerOrdersCount}
-                </p>
-                <span className="text-xs font-semibold text-slate-600">Fleet Orders</span>
-              </div>
-              <p className="text-xs text-slate-600 font-medium mt-3">Tier-1 Logistics Accounts</p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Includes 8 strategic OEM fleet contracts with strict 72-hour milestone deadlines.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Section 5: Recommended Preventive Actions ───────── */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-slate-700" />
-                <span>5. Recommended Preventive Actions</span>
+                <span>5. Recommended Preventive Actions (Pre-Crisis Measures)</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                AI-assisted proactive countermeasures to mitigate the early warning before crisis onset
+                Proactive mitigations evaluated before confirmed shutdown to safeguard assembly continuity.
               </p>
             </div>
-            <span className="text-xs text-slate-400 font-medium">5 Actionable Mitigations</span>
+            <span className="text-xs text-slate-500 font-medium">6 Countermeasures Evaluated</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {riskData.preventiveRecommendations.map((rec, index) => (
+            {riskData.preventiveRecommendations.map((rec, idx) => (
               <div
                 key={rec.id}
-                className="border border-slate-200 rounded-xl p-4 bg-white hover:border-slate-300 transition shadow-2xs flex flex-col justify-between"
+                className="border border-slate-200 rounded-xl p-4 bg-white hover:border-slate-300 transition shadow-2xs flex flex-col justify-between space-y-3"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold font-mono text-slate-400">
-                      REC-0{index + 1}
+                      REC-0{idx + 1}
                     </span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                      rec.readiness === 'READY'
+                      rec.status === 'Recommended'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                        : rec.status === 'Under Review'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
                     }`}>
-                      {rec.readiness.replace('_', ' ')}
+                      {rec.status}
                     </span>
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900 mt-2">{rec.title}</h3>
-                  <p className="text-[11px] font-semibold text-sky-700 mt-0.5">{rec.category}</p>
-                  <p className="text-xs text-slate-600 mt-2 leading-relaxed">{rec.action}</p>
+
+                  <h3 className="text-xs font-bold text-slate-900 mt-2">{rec.action}</h3>
+                  <span className="inline-block text-[10px] font-semibold text-sky-700 mt-0.5">{rec.category}</span>
+
+                  <div className="mt-2 space-y-2 text-xs text-slate-600">
+                    <div>
+                      <span className="font-bold text-slate-700 text-[11px]">Reason: </span>
+                      <span>{rec.reason}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-700 text-[11px]">Expected Purpose: </span>
+                      <span>{rec.expectedPurpose}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3 text-slate-400" />
                     {rec.leadTime}
@@ -547,7 +426,58 @@ export default function EarlyWarningPage() {
           </div>
         </div>
 
-        {/* ── Section 6: Human Approval & Decision Control ─────── */}
+        {/* ── 8. External Signal Intelligence Section ──────────── */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <Radio className="w-4 h-4 text-sky-600" />
+                <span>8. External Intelligence (Third-Party Signal Connectors)</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                External intelligence connectors can enrich ResiliNet risk detection with third-party signals.
+              </p>
+            </div>
+            <Link
+              href="/integration-hub"
+              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 font-bold"
+            >
+              <span>Manage in Integration Hub</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {riskData.externalIntelligencePlaceholders.map((ext) => (
+              <div
+                key={ext.id}
+                className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-white transition flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">{ext.category}</span>
+                    <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded">
+                      {ext.status}
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 mt-2">{ext.name}</h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">{ext.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/80 text-[10px] text-slate-500">
+                  <span className="font-semibold text-slate-700">Enriched Telemetry: </span>
+                  <span>{ext.potentialSignals}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] text-slate-500 italic">
+            * Note: External feeds are labeled &ldquo;Integration Ready&rdquo; in prototype mode. Synthetic events are ingested through the ResiliNet Normalization Schema without active third-party billing.
+          </p>
+        </div>
+
+        {/* ── 6. Human Approval & Decision Control ──────────────── */}
         <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md space-y-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -580,7 +510,7 @@ export default function EarlyWarningPage() {
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition cursor-pointer"
               >
                 <FileText className="w-4 h-4 text-sky-400" />
-                <span>Review Risk Details</span>
+                <span>Review Risk</span>
               </button>
 
               <button
@@ -621,12 +551,11 @@ export default function EarlyWarningPage() {
             </div>
           </div>
 
-          {/* Feedback banners */}
           {dismissed && (
             <div className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-slate-400" />
-                <span>Signal EW-2026-089 marked as Dismissed. Ongoing telemetry will continue in passive monitoring mode.</span>
+                <span>Signal EW-2026-089 marked as Dismissed. Telemetry returns to passive background monitoring.</span>
               </div>
               <button
                 onClick={handleReset}
@@ -648,10 +577,170 @@ export default function EarlyWarningPage() {
         </div>
       </div>
 
-      {/* ── Review Risk Parameter Breakdown Modal ───────────── */}
+      {/* ── Modal 1: Preventive Simulation Modal ───────────────── */}
+      {showSimulationModal && (
+        <div
+          onClick={() => setShowSimulationModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-slate-200 max-w-3xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-mono">
+                    Simulation Engine
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Model: ResiliNet Pre-Disruption Simulator
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">
+                  Preventive Simulation: Pre-Crisis Strategy Evaluation
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  ResiliNet evaluates proactive preventive options before disruptions become critical operational stoppages.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSimulationModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Decision Framework Weights */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800">
+                  Decision Framework Multi-Factor Weights
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Multi-factor decision scoring supported by AI recommendations.
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                {DECISION_WEIGHTS.map((dw) => (
+                  <div key={dw.label} className="bg-white border border-slate-200 rounded-lg p-2 text-center">
+                    <span className="text-[10px] text-slate-500 block truncate">{dw.label}</span>
+                    <span className="text-xs font-mono font-extrabold text-slate-900">{dw.weight}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Interactive Horizon Slider */}
+            <div className="space-y-2 border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800">
+                  Preventive Intervention Horizon (Hours Prior to Stoppage)
+                </label>
+                <span className="text-xs font-mono font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                  {simulationHorizon} Hours
+                </span>
+              </div>
+              <input
+                type="range"
+                min={12}
+                max={72}
+                step={12}
+                value={simulationHorizon}
+                onChange={(e) => setSimulationHorizon(Number(e.target.value))}
+                className="w-full accent-sky-600 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>12h (Emergency buffer)</span>
+                <span>36h (Current lead gap)</span>
+                <span>48h (Optimal activation)</span>
+                <span>72h (Full AVL lead)</span>
+              </div>
+            </div>
+
+            {/* Compared Preventive Options */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Ranked Preventive Strategy Options
+              </h4>
+              <div className="space-y-2">
+                {DEMO_RECOVERY_STRATEGIES.map((strat, idx) => (
+                  <div
+                    key={strat.id}
+                    className={`border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      strat.is_recommended
+                        ? 'border-sky-300 bg-sky-50/40'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-slate-500">#{idx + 1}</span>
+                        <span className="text-xs font-bold text-slate-900">{strat.name}</span>
+                        {strat.is_recommended && (
+                          <span className="text-[10px] font-extrabold bg-sky-600 text-white px-2 py-0.2 rounded">
+                            ★ TOP PICK
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1 max-w-xl">{strat.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0 sm:border-l sm:border-slate-200 sm:pl-4">
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase font-mono">Score</div>
+                        <div className="text-sm font-extrabold font-mono text-slate-900">{strat.overall_score}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-400 uppercase font-mono">Protected</div>
+                        <div className="text-sm font-extrabold font-mono text-emerald-700">
+                          ₹{(strat.revenue_protected_inr / 100000).toFixed(1)}L
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <span className="text-[11px] text-slate-500">
+                ResiliNet decision framework uses deterministic multi-criteria scoring.
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowSimulationModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                >
+                  Close Simulation
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSimulationModal(false);
+                    handlePrepareMitigation();
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                >
+                  Proceed to Strategy Execution
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 2: Review Risk Parameter Breakdown ───────────── */}
       {showReviewModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+        <div
+          onClick={() => setShowReviewModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200"
+          >
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase font-mono">
@@ -674,7 +763,7 @@ export default function EarlyWarningPage() {
 
             <div className="space-y-3 text-xs">
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
-                <p className="font-bold text-slate-800">Signal Confidence & Model Version</p>
+                <p className="font-bold text-slate-800">Signal Confidence &amp; Model Methodology</p>
                 <p className="text-slate-600 leading-relaxed">
                   Early warning score is generated via 5-factor weighted multivariate scoring against 24-month SAP historical dispatch baselines. Confidence index: <strong>84.2%</strong>.
                 </p>
@@ -691,7 +780,7 @@ export default function EarlyWarningPage() {
               </div>
 
               <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 text-[11px] leading-relaxed">
-                <strong>Governance Policy:</strong> Clicking &quot;Prepare Mitigation&quot; transitions the scenario into active mitigation mode, linking to Recovery Strategies and What-If Simulator without breaking state persistence.
+                <strong>Governance Policy:</strong> Clicking &ldquo;Prepare Mitigation&rdquo; transitions the scenario into active mitigation mode, linking to Recovery Strategies and What-If Simulator without breaking state persistence.
               </div>
             </div>
 

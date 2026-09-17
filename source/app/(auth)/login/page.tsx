@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ShieldCheck,
@@ -66,23 +67,19 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center space-y-2">
-        <div className="w-13 h-13 rounded-2xl bg-slate-900 text-white flex items-center justify-center mx-auto shadow-sm ring-1 ring-slate-800">
-          <ShieldCheck className="w-8 h-8 text-sky-400" />
+      <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center">
+        <div className="relative w-64 h-32 sm:w-80 sm:h-40 mx-auto flex items-center justify-center -mb-0.5">
+          <Image
+            src="/resilinet-logo.png"
+            alt="ResiliNet - AI-Powered Supply Chain Resilience"
+            width={320}
+            height={160}
+            className="w-full h-full object-contain"
+            priority
+          />
         </div>
-        <div className="flex items-center justify-center gap-2 pt-1">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-            ResiliNet
-          </h1>
-          <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200">
-            SAP Edition
-          </span>
-        </div>
-        <p className="text-sm font-medium text-slate-600">
-          AI-Powered Supply Chain Crisis Orchestrator
-        </p>
-        <p className="text-xs text-slate-400 font-medium">
-          Astra Motors Manufacturing • PL-01 Hyderabad Resilience Operations
+        <p className="text-xs text-slate-500 font-medium tracking-wide">
+          Astra Motors Manufacturing • Enterprise Crisis Orchestration Platform
         </p>
       </div>
 
@@ -187,7 +184,7 @@ export default function LoginPage() {
           )}
 
           {/* Sign In Form */}
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit} suppressHydrationWarning>
             <div>
               <label
                 htmlFor="email"
@@ -208,6 +205,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="manager@astramotors.com"
+                  suppressHydrationWarning
                   className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400 transition"
                 />
               </div>
@@ -233,6 +231,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
+                  suppressHydrationWarning
                   className="block w-full pl-9 pr-10 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400 transition"
                 />
                 <button
@@ -240,6 +239,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-hidden"
                   tabIndex={-1}
+                  suppressHydrationWarning
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -253,6 +253,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
+              suppressHydrationWarning
               className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 transition focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? (
@@ -262,7 +263,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  <span>Sign In to ResiliNet</span>
+                  <span>Sign In</span>
                   <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
                 </>
               )}

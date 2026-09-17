@@ -21,17 +21,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-const DEFAULT_STRATEGY = DEMO_RECOVERY_STRATEGIES[3]; // Combined Recovery
-
-const AGENT_CONSENSUS = [
-  { agent: 'Procurement',      vote: 'COMBINED (Secondary)', confidence: 87, note: 'Alternate supplier 7-day lead time is a constraint; endorses combined.' },
-  { agent: 'Inventory',        vote: 'COMBINED',             confidence: 94, note: 'Chennai STO of 120 units is immediately actionable.' },
-  { agent: 'Production',       vote: 'COMBINED',             confidence: 91, note: 'Prioritization of EV-X Prime lines aligned with combined approach.' },
-  { agent: 'Logistics',        vote: 'COMBINED',             confidence: 89, note: 'Air + overnight road is the only dual-mode option within the buffer window.' },
-  { agent: 'Finance',          vote: 'COMBINED',             confidence: 96, note: '11.5x ROI is the highest across all scenarios modeled.' },
-  { agent: 'Customer Impact',  vote: 'COMBINED',             confidence: 93, note: 'Only strategy that satisfies all 8 OEM Tier-1 SLA deadlines.' },
-];
-
 const GOVERNANCE_POINTS = [
   'Human verification is mandatory. Autonomous execution is disabled.',
   'This approval constitutes a formal digital sign-off under Astra Motors SCM Policy 4.2.',
@@ -41,12 +30,73 @@ const GOVERNANCE_POINTS = [
 
 export default function ApprovalCenterPage() {
   const router = useRouter();
-  const { approvedStrategy, setWorkflowState } = useWorkflow();
-  const strategy = approvedStrategy || DEFAULT_STRATEGY;
+  const { approvedStrategy, selectedStrategy, isOverride, setApprovedStrategy, setWorkflowState, workflowState } = useWorkflow();
 
-  const [decision, setDecision] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES'>('PENDING');
+  // Use the exact strategy selected by the user, or fall back to the recommended strategy only if none selected
+  const strategy = approvedStrategy || selectedStrategy || DEMO_RECOVERY_STRATEGIES[0];
+  const isHumanOverride = isOverride || strategy.id !== 'STRAT-004';
+
+  const [decision, setDecision] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES'>(() =>
+    workflowState === 'APPROVED' || workflowState === 'EXECUTING' || workflowState === 'RECOVERED'
+      ? 'APPROVED'
+      : 'PENDING'
+  );
   const [comment, setComment] = useState('');
-  const [approvedAt, setApprovedAt] = useState<string>('');
+  const [approvedAt, setApprovedAt] = useState<string>(() =>
+    workflowState === 'APPROVED' || workflowState === 'EXECUTING' || workflowState === 'RECOVERED'
+      ? new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : ''
+  );
+
+  React.useEffect(() => {
+    if (workflowState === 'APPROVED' || workflowState === 'EXECUTING' || workflowState === 'RECOVERED') {
+      setDecision('APPROVED');
+    }
+  }, [workflowState]);
+
+  const costLabel = '₹' + (strategy.cost_inr / 100000).toFixed(1) + 'L';
+  const timeLabel = strategy.recovery_time_days + (strategy.recovery_time_days === 1 ? ' Day' : ' Days');
+  const revenueLabel = '₹' + (strategy.revenue_protected_inr / 100000).toFixed(1) + 'L';
+  const roiLabel = strategy.cost_inr > 0 ? (strategy.revenue_protected_inr / strategy.cost_inr).toFixed(1) + 'x' : 'N/A';
+
+  const agentConsensus = [
+    {
+      agent: 'Procurement',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 87 : strategy.id === 'STRAT-003' ? 92 : strategy.id === 'STRAT-002' ? 90 : 85,
+      note: `Evaluated supplier response window; endorses ${strategy.name} to minimize downtime.`,
+    },
+    {
+      agent: 'Inventory',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 94 : strategy.id === 'STRAT-002' ? 96 : 88,
+      note: `Confirmed stock buffer availability and logistics readiness for ${strategy.name}.`,
+    },
+    {
+      agent: 'Production',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 91 : strategy.id === 'STRAT-003' ? 93 : 86,
+      note: `Aligned shift schedules to accommodate the ${timeLabel} turnaround time.`,
+    },
+    {
+      agent: 'Logistics',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 89 : strategy.id === 'STRAT-003' ? 95 : 88,
+      note: `Carrier capacity and lane-haul routing secured within projected ${costLabel} cost.`,
+    },
+    {
+      agent: 'Finance',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 96 : strategy.id === 'STRAT-002' ? 93 : 89,
+      note: `${roiLabel} projected return on capital; protects ${revenueLabel} at risk.`,
+    },
+    {
+      agent: 'Customer Impact',
+      vote: strategy.name,
+      confidence: strategy.id === 'STRAT-004' ? 93 : strategy.id === 'STRAT-003' ? 94 : 84,
+      note: `Preserves primary OEM Tier-1 SLA fulfillment commitments for 20 fleet orders.`,
+    },
+  ];
 
   function handleApprove() {
     const ts = new Date().toLocaleString('en-IN', {
@@ -55,6 +105,7 @@ export default function ApprovalCenterPage() {
     });
     setApprovedAt(ts);
     setDecision('APPROVED');
+    setApprovedStrategy(strategy, isHumanOverride);
     setWorkflowState('APPROVED');
   }
 
@@ -83,7 +134,12 @@ export default function ApprovalCenterPage() {
                 Supply Chain Manager formal sign-off — Incident DIS-2026-001 · S-104 Global Metals Crisis
               </p>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              {isHumanOverride && (
+                <span className="text-[11px] font-bold px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                  ⚠ Human Override Active
+                </span>
+              )}
               {decision === 'APPROVED' && (
                 <span className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
                   ✓ APPROVED
@@ -105,27 +161,49 @@ export default function ApprovalCenterPage() {
 
         {/* ── Strategy Summary ─────────────────────────────────── */}
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50">
-            <h3 className="text-sm font-bold text-slate-900">Recovery Strategy Under Review</h3>
-            <p className="text-xs text-slate-500">Decision Orchestrator Score: {strategy.overall_score.toFixed(1)} / 100</p>
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Selected Strategy for Approval</h3>
+              <p className="text-xs text-slate-500">
+                Decision Orchestrator Score: {strategy.overall_score.toFixed(1)} / 100
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-bold text-slate-700">
+                Approved Strategy:{' '}
+                <span className="text-sky-700 font-extrabold">{strategy.name}</span>
+              </span>
+            </div>
           </div>
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-base font-bold text-slate-900">{strategy.name}</p>
-              {strategy.is_recommended && (
+              <div className="flex items-center gap-2">
+                <p className="text-base font-bold text-slate-900">{strategy.name}</p>
+                {isHumanOverride && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    Human Choice
+                  </span>
+                )}
+              </div>
+              {strategy.is_recommended ? (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-600 text-white">
-                  ★ AI RECOMMENDED
+                  ★ TOP PICK
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-600 text-white">
+                  ⚠ HUMAN OVERRIDE
                 </span>
               )}
             </div>
+
             <p className="text-xs text-slate-600">{strategy.description}</p>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { icon: IndianRupee, label: 'Total Cost',        value: '₹2.1L',   color: 'text-slate-700' },
-                { icon: Clock,       label: 'Recovery Time',     value: '1 Day',    color: 'text-emerald-700' },
-                { icon: TrendingUp,  label: 'Revenue Protected', value: '₹24.2L',  color: 'text-emerald-700' },
-                { icon: ShieldCheck, label: 'ROI',               value: '11.5x',   color: 'text-sky-700' },
+                { icon: IndianRupee, label: 'Total Cost',        value: costLabel,    color: 'text-slate-700' },
+                { icon: Clock,       label: 'Recovery Time',     value: timeLabel,    color: 'text-emerald-700' },
+                { icon: TrendingUp,  label: 'Revenue Protected', value: revenueLabel, color: 'text-emerald-700' },
+                { icon: ShieldCheck, label: 'Risk Level',        value: strategy.risk_level, color: strategy.risk_level === 'LOW' ? 'text-emerald-700' : 'text-amber-700' },
               ].map((kpi) => {
                 const Icon = kpi.icon;
                 return (
@@ -143,9 +221,8 @@ export default function ApprovalCenterPage() {
               <p className="text-xs font-bold text-sky-800">Business Justification</p>
               <p className="text-xs text-sky-800 leading-relaxed">
                 Without intervention, PL-01 Hyderabad will exhaust M-101 inventory in 2.4 days, halting 17 production orders
-                and triggering ₹27.4L in unmitigated losses. The Combined Recovery strategy deploys air cargo (100 units, 2 days)
-                and overnight road express from PL-02 Chennai (120 units, 36 hrs), delivering materials before line stoppage.
-                This protects ₹24.2L in revenue and preserves all 8 Tier-1 OEM SLA commitments at a net ROI of 11.5x.
+                and triggering ₹27.4L in unmitigated losses. The <strong>{strategy.name}</strong> strategy mitigates the
+                disruption within <strong>{timeLabel}</strong> at an estimated investment of <strong>{costLabel}</strong>, protecting <strong>{revenueLabel}</strong> in customer order value and securing OEM Tier-1 SLA milestones.
               </p>
             </div>
           </div>
@@ -155,10 +232,10 @@ export default function ApprovalCenterPage() {
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100 bg-slate-50">
             <h3 className="text-sm font-bold text-slate-900">AI Agent Consensus Breakdown</h3>
-            <p className="text-xs text-slate-500">6 specialized agents — all endorsing Combined Recovery</p>
+            <p className="text-xs text-slate-500">6 specialized agents evaluating {strategy.name}</p>
           </div>
           <div className="p-5 space-y-3">
-            {AGENT_CONSENSUS.map((ac) => (
+            {agentConsensus.map((ac) => (
               <div key={ac.agent} className="flex items-start gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
                 <div className="flex-1">
@@ -201,21 +278,21 @@ export default function ApprovalCenterPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleApprove}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-md transition"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-md transition cursor-pointer"
               >
                 <ShieldCheck className="w-4 h-4" />
-                APPROVE RECOVERY
+                APPROVE RECOVERY STRATEGY
               </button>
               <button
                 onClick={handleRequestChanges}
-                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-sm font-bold rounded-md transition"
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-sm font-bold rounded-md transition cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4" />
                 Request Changes
               </button>
               <button
                 onClick={handleReject}
-                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 text-sm font-bold rounded-md transition"
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 text-sm font-bold rounded-md transition cursor-pointer"
               >
                 <XCircle className="w-4 h-4" />
                 Reject
@@ -224,24 +301,26 @@ export default function ApprovalCenterPage() {
           </div>
         )}
 
-        {/* ── Approved State ────────────────────────────────────── */}
+        {/* ── Approved State ──────────────────────────────────────── */}
         {decision === 'APPROVED' && (
           <div className="bg-emerald-50 border-2 border-emerald-400 rounded-lg p-5 space-y-4">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               <div>
-                <p className="text-base font-bold text-emerald-900">Recovery Strategy Approved</p>
+                <p className="text-base font-bold text-emerald-900">
+                  Approved Strategy: {strategy.name}
+                </p>
                 <p className="text-xs text-emerald-700">
-                  Approved by: Supply Chain Manager · {approvedAt} · Ref: APR-2026-S104-001
+                  Formal sign-off recorded at {approvedAt} by Authorized Supply Chain Manager.
                 </p>
               </div>
             </div>
             <p className="text-xs text-emerald-800">
-              Combined Recovery strategy is formally authorized. The Recovery Execution engine is now enabled. All 5 simulated SAP actions are queued and ready to execute.
+              {strategy.name} strategy is formally authorized. Recovery Execution engine is now armed and synchronized with actual strategy parameters ({timeLabel} recovery time, {costLabel} cost, {revenueLabel} protected).
             </p>
             <Link
               href="/recovery-execution"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-md transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-md transition cursor-pointer"
             >
               Launch Recovery Execution Console
               <ArrowRight className="w-3.5 h-3.5" />
@@ -262,12 +341,12 @@ export default function ApprovalCenterPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDecision('PENDING')}
-                className="px-4 py-2 bg-white border border-red-300 text-red-700 text-xs font-bold rounded hover:bg-red-50 transition"
+                className="px-4 py-2 bg-white border border-red-300 text-red-700 text-xs font-bold rounded hover:bg-red-50 transition cursor-pointer"
               >
                 Reconsider
               </button>
-              <Link href="/ai-command-center" className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
-                Return to AI Command Center
+              <Link href="/recovery-strategies" className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded hover:bg-slate-800 transition">
+                Return to Recovery Strategies
               </Link>
             </div>
           </div>
@@ -289,15 +368,15 @@ export default function ApprovalCenterPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDecision('PENDING')}
-                className="px-4 py-2 bg-white border border-amber-300 text-amber-700 text-xs font-bold rounded hover:bg-amber-50 transition"
+                className="px-4 py-2 bg-white border border-amber-300 text-amber-700 text-xs font-bold rounded hover:bg-amber-50 transition cursor-pointer"
               >
                 Cancel
               </button>
               <Link
-                href="/ai-command-center"
+                href="/what-if-simulator"
                 className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700 transition"
               >
-                Send to Agents & Re-analyze
+                Simulate Scenarios & Re-analyze
               </Link>
             </div>
           </div>

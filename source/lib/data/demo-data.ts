@@ -420,13 +420,33 @@ export interface EarlyWarningRisk {
   severity: 'HIGH' | 'CRITICAL' | 'MEDIUM' | 'LOW';
   status: 'EARLY_WARNING_ACTIVE' | 'UNDER_REVIEW' | 'MITIGATION_PREPARED' | 'DISMISSED';
   detectedAt: string;
+  kpis: {
+    supplyChainRisk: 'HIGH' | 'CRITICAL' | 'MEDIUM' | 'LOW';
+    suppliersAtRisk: number;
+    materialsAtRisk: number;
+    potentialRevenueExposureInr: number;
+    potentialRevenueExposureLabel: string;
+    earliestRiskHorizonDays: number;
+  };
   signals: Array<{
     id: string;
     name: string;
+    signalSource: 'Enterprise Signal' | 'External Signal';
+    sourceConnection: 'Connected' | 'Integration Ready';
+    sourceSystem: string;
     value: string;
     baseline: string;
     status: 'CRITICAL' | 'WARNING' | 'ALERT';
     description: string;
+    timestamp: string;
+  }>;
+  propagationStages: Array<{
+    stageNumber: number;
+    name: string;
+    entity: string;
+    detail: string;
+    subtext: string;
+    status: 'CRITICAL' | 'WARNING' | 'ALERT' | 'INFO';
   }>;
   dependencyChain: {
     supplier: string;
@@ -445,12 +465,22 @@ export interface EarlyWarningRisk {
   };
   preventiveRecommendations: Array<{
     id: string;
-    title: string;
-    category: string;
     action: string;
+    reason: string;
+    expectedPurpose: string;
+    status: 'Recommended' | 'Under Review' | 'Ready to Evaluate';
+    category: string;
     leadTime: string;
     costEstimate: string;
     readiness: 'READY' | 'REQUIRES_PO' | 'DISPATCH_PENDING';
+  }>;
+  externalIntelligencePlaceholders: Array<{
+    id: string;
+    name: string;
+    category: string;
+    status: 'Integration Ready';
+    description: string;
+    potentialSignals: string;
   }>;
 }
 
@@ -481,46 +511,132 @@ export const DEMO_EARLY_WARNING_RISK: EarlyWarningRisk = {
   severity: 'HIGH',
   status: 'EARLY_WARNING_ACTIVE',
   detectedAt: '16-Sep-2026 14:32 IST (36 hours prior to shutdown)',
+  kpis: {
+    supplyChainRisk: 'HIGH',
+    suppliersAtRisk: 1,
+    materialsAtRisk: 1,
+    potentialRevenueExposureInr: 2740000,
+    potentialRevenueExposureLabel: '₹27.4L',
+    earliestRiskHorizonDays: 2.4,
+  },
   signals: [
     {
       id: 'SIG-01',
-      name: 'Supplier Delivery Reliability Deterioration',
-      value: '88.0%',
-      baseline: '98.0% historical baseline',
+      name: 'Supplier Disruption / Shutdown Signal',
+      signalSource: 'External Signal',
+      sourceConnection: 'Integration Ready',
+      sourceSystem: 'Supplier Intelligence Feed (S-104 Telemetry)',
+      value: 'Smelter Refractory Anomaly',
+      baseline: 'Normal continuous operating state',
       status: 'CRITICAL',
-      description: 'Consecutive batch delivery punctuality dropped by 10% over the trailing 3 dispatch cycles from Jamshedpur facility.',
+      description: 'Scheduled blast furnace overhaul coupled with regional environmental compliance audit alerts at Jamshedpur facility indicate high probability of smelter stoppage.',
+      timestamp: '16-Sep-2026 14:15 IST',
     },
     {
       id: 'SIG-02',
-      name: 'Increasing Shipment Delay Trend',
-      value: '+2.8 Days',
-      baseline: 'Zero delay tolerance',
-      status: 'WARNING',
-      description: 'Average line-haul transit delay expanded from 0.4 to 3.2 days across eastern freight corridor checkpoints.',
+      name: 'Low Inventory Coverage',
+      signalSource: 'Enterprise Signal',
+      sourceConnection: 'Connected',
+      sourceSystem: 'SAP EWM / Inventory Management',
+      value: '2.4 Days',
+      baseline: '5.0 Days target safety buffer',
+      status: 'CRITICAL',
+      description: 'On-hand stock at Hyderabad PL-01 has dropped to 240 units of M-101 Steering Assembly against a sustained burn rate of 100 units/day, breaching safety buffer threshold.',
+      timestamp: '16-Sep-2026 14:20 IST',
     },
     {
       id: 'SIG-03',
-      name: 'Inventory Buffer Coverage',
-      value: '2.4 Days',
-      baseline: '5.0 Days target safety stock',
-      status: 'CRITICAL',
-      description: 'On-hand stock at Hyderabad dropped to 240 units against a 100 units/day burn rate, threatening safety buffer breach.',
+      name: 'Production Line Dependency',
+      signalSource: 'Enterprise Signal',
+      sourceConnection: 'Connected',
+      sourceSystem: 'SAP PP / Production Planning',
+      value: '17 Assembly Orders Exposed',
+      baseline: '0 delayed work orders',
+      status: 'WARNING',
+      description: 'Chassis assembly lines 1 (EV-X Prime) and 2 (Sierra Commercial) have 17 active scheduled work orders with 100% direct dependency on M-101 and no inline substitution.',
+      timestamp: '16-Sep-2026 14:25 IST',
     },
     {
       id: 'SIG-04',
-      name: 'Supplier Operating Status',
-      value: 'Warning / Shutdown Risk',
-      baseline: 'Healthy operational baseline',
-      status: 'ALERT',
-      description: 'Preliminary telemetry indicates scheduled furnace overhaul and pending environmental audits at supplier plant.',
+      name: 'Customer-Order Exposure',
+      signalSource: 'Enterprise Signal',
+      sourceConnection: 'Connected',
+      sourceSystem: 'SAP SD / Sales & Distribution',
+      value: '20 Fleet Orders at SLA Risk',
+      baseline: 'On-time delivery commitment: 99.2%',
+      status: 'WARNING',
+      description: 'Contractual delivery schedules for 20 Tier-1 fleet vehicles face potential delay penalties if final assembly line is halted within the next 48 hours.',
+      timestamp: '16-Sep-2026 14:28 IST',
     },
     {
       id: 'SIG-05',
-      name: 'Component Criticality Level',
-      value: 'CRITICAL (Tier-1)',
-      baseline: 'Chassis line dependency',
+      name: 'Increasing Shipment Delay Trend',
+      signalSource: 'Enterprise Signal',
+      sourceConnection: 'Connected',
+      sourceSystem: 'Logistics ASN Tracking (SAP TM)',
+      value: '+2.8 Days',
+      baseline: '10 Days nominal lead time',
+      status: 'WARNING',
+      description: 'Average line-haul transit delay expanded from 0.4 to 3.2 days across eastern freight corridor checkpoints (Kolkata-Vizag-Hyderabad).',
+      timestamp: '16-Sep-2026 14:30 IST',
+    },
+  ],
+  propagationStages: [
+    {
+      stageNumber: 1,
+      name: 'Supplier',
+      entity: 'Global Metals Ltd. (S-104)',
+      detail: 'Jamshedpur Smelting Facility',
+      subtext: 'Shutdown risk • Reliability 88.0%',
       status: 'CRITICAL',
-      description: 'M-101 Steering Assembly is a non-substitutable direct component for all 17 active Hyderabad production orders.',
+    },
+    {
+      stageNumber: 2,
+      name: 'Material',
+      entity: 'Steering Assembly (M-101)',
+      detail: 'Chassis Safety Component',
+      subtext: 'Lead Time: 10 + 2.8d delay',
+      status: 'CRITICAL',
+    },
+    {
+      stageNumber: 3,
+      name: 'Inventory',
+      entity: '240 Units On-Hand',
+      detail: 'Coverage: 2.4 Days',
+      subtext: 'Deficit: -2.6 days vs safety buffer',
+      status: 'CRITICAL',
+    },
+    {
+      stageNumber: 4,
+      name: 'Plant',
+      entity: 'PL-01 Hyderabad Plant',
+      detail: 'Lines 1 & 2 Dependent',
+      subtext: 'Capacity: 120 u/day • 88.5% Util',
+      status: 'WARNING',
+    },
+    {
+      stageNumber: 5,
+      name: 'Production',
+      entity: '17 Work Orders',
+      detail: 'EV-X Prime & Sierra Chassis',
+      subtext: 'Halting risk within 48–72 hours',
+      status: 'WARNING',
+    },
+    {
+      stageNumber: 6,
+      name: 'Customer Orders',
+      entity: '20 Fleet Orders',
+      detail: 'OEM Fleet Deliveries',
+      subtext: 'Strict 72-hour delivery SLA',
+      status: 'ALERT',
+    },
+    {
+      stageNumber: 7,
+      name: 'Revenue Exposure',
+      entity: '₹27.4L Total at Risk',
+      detail: '₹2,740,000 INR Exposure',
+      subtext: 'Delayed billings + penalty liability',
+      status: 'CRITICAL',
     },
   ],
   dependencyChain: {
@@ -541,49 +657,266 @@ export const DEMO_EARLY_WARNING_RISK: EarlyWarningRisk = {
   preventiveRecommendations: [
     {
       id: 'REC-01',
-      title: 'Increase Safety Stock Buffer',
-      category: 'Inventory Buffering',
-      action: 'Issue emergency purchase requisition to expand buffer threshold from 500 to 700 units across regional hubs.',
-      leadTime: 'Immediate (SAP MM)',
-      costEstimate: '₹0.5L working capital buffer',
-      readiness: 'READY',
-    },
-    {
-      id: 'REC-02',
-      title: 'Alternate Supplier Secondary Allocation',
+      action: 'Identify alternate supplier',
+      reason: 'S-104 smelting facility vulnerability threatens single-source steering assembly supply.',
+      expectedPurpose: 'Activate standby quota allocation with pre-qualified secondary vendor Bharat Precision (Pune) for up to 220 units.',
+      status: 'Recommended',
       category: 'Procurement Resiliency',
-      action: 'Trigger standby quota allocation with pre-qualified AVL vendor Bharat Precision (Pune) for 220 steering units.',
       leadTime: '48 Hours activation',
       costEstimate: '₹1.2L contracted rate',
       readiness: 'READY',
     },
     {
-      id: 'REC-03',
-      title: 'Pre-Position Inter-Plant Inventory',
-      category: 'Stock Balancing',
-      action: 'Issue pre-emptive Stock Transport Order (STO) from PL-02 Chennai (which maintains 5.6 days surplus coverage).',
+      id: 'REC-02',
+      action: 'Evaluate inventory transfer',
+      reason: 'PL-02 Chennai holds 5.6 days safety stock (450 units) of M-101, well above its 400-unit safety threshold.',
+      expectedPurpose: 'Draft pre-emptive Stock Transport Order (STO) for 180 units via dedicated road express to rebalance Hyderabad.',
+      status: 'Under Review',
+      category: 'Inter-Plant Stock Balancing',
       leadTime: '36 Hours road express',
       costEstimate: '₹0.8L logistics cost',
       readiness: 'READY',
     },
     {
+      id: 'REC-03',
+      action: 'Reserve emergency inventory',
+      reason: 'Current 2.4 days on-hand coverage breaches the mandatory 5.0 days safety buffer at PL-01.',
+      expectedPurpose: 'Issue emergency purchase requisition to expand buffer threshold from 500 to 700 units across regional hubs.',
+      status: 'Ready to Evaluate',
+      category: 'Inventory Buffering',
+      leadTime: 'Immediate (SAP MM)',
+      costEstimate: '₹0.5L working capital buffer',
+      readiness: 'READY',
+    },
+    {
       id: 'REC-04',
-      title: 'Reserve Expedited Logistics Capacity',
-      category: 'Freight Readiness',
-      action: 'Place tentative air freight charter booking on Jamshedpur → Hyderabad lane to safeguard against total line stoppage.',
+      action: 'Evaluate expedited logistics',
+      reason: 'Line-haul freight transit delays are expanding by +2.8 days on eastern highway corridors.',
+      expectedPurpose: 'Place tentative air freight charter booking on Jamshedpur → Hyderabad lane to safeguard against total line stoppage.',
+      status: 'Recommended',
+      category: 'Logistics Readiness',
       leadTime: '24 Hours charter lock',
       costEstimate: '₹1.3L standby rate',
       readiness: 'REQUIRES_PO',
     },
     {
       id: 'REC-05',
-      title: 'Review Production Order Allocation',
-      category: 'Shopfloor Scheduling',
-      action: 'Re-sequence assembly line scheduling to prioritize high-margin EV-X Prime orders and buffer delivery commitments.',
+      action: 'Review exposed production orders',
+      reason: '17 scheduled assembly orders across Lines 1 & 2 face work-in-progress hold if parts deplete.',
+      expectedPurpose: 'Re-sequence assembly line scheduling to prioritize high-margin EV-X Prime orders and buffer delivery commitments.',
+      status: 'Under Review',
+      category: 'Production Scheduling',
       leadTime: '12 Hours shift change',
       costEstimate: 'Zero direct cost',
       readiness: 'READY',
     },
+    {
+      id: 'REC-06',
+      action: 'Review exposed customer orders',
+      reason: '20 strategic fleet customer orders risk contractual late-delivery penalties under enterprise SLAs.',
+      expectedPurpose: 'Coordinate delivery milestone buffers with account managers and proactively engage key dealership groups.',
+      status: 'Ready to Evaluate',
+      category: 'Customer SLA Protection',
+      leadTime: '6 Hours coordination',
+      costEstimate: 'Zero direct cost',
+      readiness: 'READY',
+    },
+  ],
+  externalIntelligencePlaceholders: [
+    {
+      id: 'EXT-01',
+      name: 'Weather Intelligence',
+      category: 'Meteorological Risk',
+      status: 'Integration Ready',
+      description: 'Monitors monsoon precipitation, severe weather events, and cyclone paths along key freight corridors (Kolkata-Vizag-Hyderabad).',
+      potentialSignals: 'Flood warnings, highway washout alerts, airport closures',
+    },
+    {
+      id: 'EXT-02',
+      name: 'Logistics Intelligence',
+      category: 'Carrier & Transit Telematics',
+      status: 'Integration Ready',
+      description: 'Consumes real-time GPS fleet telemetry, port congestion indices, and interstate freight checkpoint transit delay metrics.',
+      potentialSignals: 'Route ETA deviations, carrier dwell times, toll booth congestion',
+    },
+    {
+      id: 'EXT-03',
+      name: 'Supplier Risk Intelligence',
+      category: 'Vendor Health & ESG',
+      status: 'Integration Ready',
+      description: 'Aggregates third-party credit ratings, facility environmental compliance audits, and regional labor dispute notices.',
+      potentialSignals: 'Financial distress indicators, factory maintenance shutdowns, strike warnings',
+    },
   ],
 };
+
+// ─── PHASE 4B: Integration Hub Data Models ─────────────────────────────────────
+
+export interface IntegrationConnector {
+  id: string;
+  name: string;
+  category: 'ERP' | 'WMS' | 'TMS' | 'EXTERNAL_INTELLIGENCE' | 'CUSTOM';
+  status: 'Prototype Data / SAP-Ready' | 'Integration Ready';
+  systemType: string;
+  description: string;
+  protocols: string[];
+  dataScope: string[];
+  isSynthetic: boolean;
+  transparentNotice?: string;
+}
+
+export const DEMO_ENTERPRISE_SYSTEMS: IntegrationConnector[] = [
+  {
+    id: 'SYS-SAP',
+    name: 'SAP S/4HANA',
+    category: 'ERP',
+    status: 'Prototype Data / SAP-Ready',
+    systemType: 'Core Enterprise ERP',
+    description: 'Enterprise procurement, inventory, production, and order data.',
+    protocols: ['OData v4', 'RFC / BAPI', 'SAP IDoc', 'SAP Event Mesh'],
+    dataScope: ['Material Master (MARA)', 'Purchase Orders (EKKO)', 'Production Orders (AFKO)', 'Stock Overview (MARD)'],
+    isSynthetic: true,
+    transparentNotice: 'SAP-ready architecture — prototype currently uses synthetic enterprise data.',
+  },
+  {
+    id: 'SYS-ORACLE',
+    name: 'Oracle ERP Cloud',
+    category: 'ERP',
+    status: 'Integration Ready',
+    systemType: 'Enterprise Resource Planning',
+    description: 'Procurement contracts, supplier schedules, and multi-facility financial ledger data.',
+    protocols: ['Oracle Integration Cloud (OIC)', 'REST API', 'SOAP Web Services'],
+    dataScope: ['Purchase Agreements', 'Item Inventory', 'Cost Accounting'],
+    isSynthetic: false,
+  },
+  {
+    id: 'SYS-MSDYN',
+    name: 'Microsoft Dynamics 365',
+    category: 'ERP',
+    status: 'Integration Ready',
+    systemType: 'Supply Chain Management',
+    description: 'Plant maintenance schedules, vendor bills of material, and purchase requisitions.',
+    protocols: ['Dataverse Web API', 'OData Endpoint', 'Azure Service Bus'],
+    dataScope: ['Purchase Requisitions', 'Vendor Scorecards', 'Bill of Materials'],
+    isSynthetic: false,
+  },
+  {
+    id: 'SYS-CUSTOM-ERP',
+    name: 'Custom ERP',
+    category: 'ERP',
+    status: 'Integration Ready',
+    systemType: 'Legacy / In-House ERP',
+    description: 'Proprietary production control and local manufacturing execution systems.',
+    protocols: ['RESTful Webhook', 'GraphQL', 'Kafka Event Stream', 'gRPC'],
+    dataScope: ['Work Order Status', 'BOM Substitutions', 'Internal Material Requests'],
+    isSynthetic: false,
+  },
+  {
+    id: 'SYS-WMS',
+    name: 'Warehouse Management (WMS)',
+    category: 'WMS',
+    status: 'Integration Ready',
+    systemType: 'Warehouse & Inventory Execution',
+    description: 'Bin-level inventory positions, ASN receipts, pick-pack-ship velocity, and safety buffer monitoring.',
+    protocols: ['EDI 856 ASN', 'EDI 940/945', 'REST API', 'MQTT Sensor Streams'],
+    dataScope: ['Real-time Bin Stock', 'Inbound Gate Receipts', 'Cycle Count Variance'],
+    isSynthetic: false,
+  },
+  {
+    id: 'SYS-TMS',
+    name: 'Transportation Management (TMS)',
+    category: 'TMS',
+    status: 'Integration Ready',
+    systemType: 'Fleet & Logistics Control',
+    description: 'Freight carrier dispatch, GPS telematics milestones, lane transit times, and demurrage tracking.',
+    protocols: ['EDI 214 Shipment Status', 'EDI 204 Tender', 'Carrier Telematics Webhooks'],
+    dataScope: ['Active In-Transit Shipments', 'Checkpoint Velocity', 'Carrier On-Time SLAs'],
+    isSynthetic: false,
+  },
+];
+
+export const DEMO_EXTERNAL_INTELLIGENCE: IntegrationConnector[] = [
+  {
+    id: 'EXT-WEATHER',
+    name: 'Weather Intelligence',
+    category: 'EXTERNAL_INTELLIGENCE',
+    status: 'Integration Ready',
+    systemType: 'Meteorological Modeling',
+    description: 'Severe weather forecasts, flood zone monitoring, and route precipitation risks along interstate freight lanes.',
+    protocols: ['REST API (NOAA / OpenWeatherMap)', 'GeoJSON Map Feeds'],
+    dataScope: ['Severe Weather Alerts', 'Monsoon Corridor Tracking', 'Highway Flood Warnings'],
+    isSynthetic: false,
+  },
+  {
+    id: 'EXT-LOGISTICS',
+    name: 'Logistics Intelligence',
+    category: 'EXTERNAL_INTELLIGENCE',
+    status: 'Integration Ready',
+    systemType: 'Supply Chain Visibility Network',
+    description: 'Port congestion indexes, national toll plaza congestion velocity, and multimodal freight capacity availability.',
+    protocols: ['Project44 / FourKites Webhooks', 'AIS Maritime Telemetry', 'Air Cargo Status API'],
+    dataScope: ['Port Waiting Times', 'Corridor Speed Variance', 'Air Freight Capacity Surges'],
+    isSynthetic: false,
+  },
+  {
+    id: 'EXT-SUPPLIER-RISK',
+    name: 'Supplier Risk Intelligence',
+    category: 'EXTERNAL_INTELLIGENCE',
+    status: 'Integration Ready',
+    systemType: 'Vendor Risk & ESG Monitoring',
+    description: 'Supplier financial health indicators, factory operational disruptions, legal filings, and labor dispute signals.',
+    protocols: ['Dun & Bradstreet API', 'RapidRatings Webhook', 'EcoVadis Risk Feed'],
+    dataScope: ['Financial Viability Ratings', 'Strike & Labor Risk Alerts', 'Facility Environmental Sanctions'],
+    isSynthetic: false,
+  },
+  {
+    id: 'EXT-MARKET',
+    name: 'Market Intelligence',
+    category: 'EXTERNAL_INTELLIGENCE',
+    status: 'Integration Ready',
+    systemType: 'Commodity & Raw Materials Pricing',
+    description: 'Real-time commodity price volatility tracking for raw materials (steel, aluminum, lithium) affecting tier-1 component pricing.',
+    protocols: ['London Metal Exchange (LME) API', 'S&P Global Platts Feed'],
+    dataScope: ['Steel Ingot Price Indices', 'Alloy Surcharges', 'Currency FX Fluctuations'],
+    isSynthetic: false,
+  },
+  {
+    id: 'EXT-NEWS',
+    name: 'News / Disruption Intelligence',
+    category: 'EXTERNAL_INTELLIGENCE',
+    status: 'Integration Ready',
+    systemType: 'Global Event & Media Monitoring',
+    description: 'NLP-powered geopolitical, environmental, and regional disruption parsing for critical manufacturing hubs.',
+    protocols: ['GDELT Global Risk Feed', 'Factiva API', 'Regional News Webhooks'],
+    dataScope: ['Regional Factory Fire / Explosion Alerts', 'Transport Strike Notices', 'Geopolitical Border Delays'],
+    isSynthetic: false,
+  },
+];
+
+export const DEMO_SAMPLE_NORMALIZED_EVENT = {
+  source: 'external',
+  type: 'supplier_risk',
+  severity: 'high',
+  entity: 'S-104',
+  timestamp: '2026-09-16T14:15:00Z',
+  confidence: 0.86,
+  payload: {
+    supplier_name: 'Global Metals Ltd.',
+    plant_location: 'Jamshedpur, Jharkhand',
+    risk_factor: 'Smelter Refractory Anomaly',
+    affected_parts: ['M-101 (Steering Assembly)'],
+    expected_delay_days: 7,
+    source_attribution: 'Third-party Supplier Risk Intelligence connector (Architecture Prototype)',
+  },
+};
+
+export const DEMO_CONNECTOR_CATEGORIES = [
+  { id: 'ERP', label: 'Enterprise ERP', count: 4, desc: 'SAP S/4HANA, Oracle, Microsoft Dynamics, In-House' },
+  { id: 'WMS', label: 'Warehouse Systems (WMS)', count: 1, desc: 'Bin inventory, ASN tracking, safety stock' },
+  { id: 'TMS', label: 'Transportation (TMS)', count: 1, desc: 'Carrier telematics, transit milestones, GPS routes' },
+  { id: 'Weather', label: 'Weather Intelligence', count: 1, desc: 'Severe storm paths, monsoon flood warnings' },
+  { id: 'Logistics', label: 'Logistics Intelligence', count: 1, desc: 'Port congestion, corridor speed indices' },
+  { id: 'Supplier Risk', label: 'Supplier Risk Feeds', count: 1, desc: 'Financial health, facility audits, labor disputes' },
+  { id: 'Custom API', label: 'Custom Webhook / API', count: 1, desc: 'REST, GraphQL, Kafka, or gRPC connector' },
+];
 

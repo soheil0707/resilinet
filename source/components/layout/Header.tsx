@@ -37,7 +37,9 @@ export function Header() {
       case '/':
         return 'Executive Dashboard';
       case '/early-warning':
-        return 'Pre-Crisis Risk Detection & Early Warning';
+        return 'Early Warning Center';
+      case '/integration-hub':
+        return 'Integration Hub';
       case '/disruptions':
         return 'Disruption Center';
       case '/supply-chain-map':
@@ -120,25 +122,31 @@ export function Header() {
           </button>
 
           {showRoleMenu && (
-            <div className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50 text-xs">
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                Switch Active Role
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowRoleMenu(false)}
+              />
+              <div className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50 text-xs">
+                <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                  Switch Active Role
+                </div>
+                {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleRoleChange(r)}
+                    className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-slate-50 transition ${
+                      activeRole === r ? 'font-bold text-sky-700 bg-sky-50/50' : 'text-slate-700'
+                    }`}
+                  >
+                    <span>{ROLE_LABELS[r]}</span>
+                    {activeRole === r && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
+                    )}
+                  </button>
+                ))}
               </div>
-              {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => handleRoleChange(r)}
-                  className={`w-full text-left px-3 py-2 flex items-center justify-between hover:bg-slate-50 transition ${
-                    activeRole === r ? 'font-bold text-sky-700 bg-sky-50/50' : 'text-slate-700'
-                  }`}
-                >
-                  <span>{ROLE_LABELS[r]}</span>
-                  {activeRole === r && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
-                  )}
-                </button>
-              ))}
-            </div>
+            </>
           )}
         </div>
 

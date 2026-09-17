@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { EnterpriseShell } from '@/components/layout/EnterpriseShell';
 import { useWorkflow } from '@/lib/workflow/workflow-context';
@@ -22,47 +22,73 @@ const MODULE_COLORS: Record<string, string> = {
   'SAP TM':  'text-amber-700 bg-amber-50 border-amber-200',
   'SAP PP':  'text-emerald-700 bg-emerald-50 border-emerald-200',
   'SAP SD':  'text-rose-700 bg-rose-50 border-rose-200',
+  'SAP QM':  'text-indigo-700 bg-indigo-50 border-indigo-200',
 };
 
-const STEP_DELAYS_MS = [1800, 2400, 3000, 2200, 2000];
-
 export default function RecoveryExecutionPage() {
-  const { approvedStrategy, workflowState, executionSteps, completeExecution } = useWorkflow();
+  const { approvedStrategy, selectedStrategy, isOverride, workflowState, executionSteps, completeExecution } = useWorkflow();
 
+  const activeStrategy = approvedStrategy || selectedStrategy || null;
   const [steps, setSteps] = useState<ExecutionStep[]>(executionSteps);
   const [running, setRunning] = useState(false);
-  const [currentStepIdx, setCurrentStepIdx] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<string>('');
   const [completedAt, setCompletedAt] = useState<string>('');
 
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Synchronize steps whenever executionSteps changes in context
+  useEffect(() => {
+    if (!running && executionSteps && executionSteps.length > 0) {
+      setSteps(executionSteps);
+    }
+  }, [executionSteps, running]);
+
   const isApproved = workflowState === 'APPROVED' || workflowState === 'EXECUTING' || workflowState === 'RECOVERED';
-  const isComplete = steps.every((s) => s.status === 'COMPLETED');
+  const isComplete = steps.length > 0 && steps.every((s) => s.status === 'COMPLETED');
 
   const runExecution = useCallback(async () => {
-    if (running || isComplete) return;
+    if (running || isComplete || steps.length === 0) return;
     setRunning(true);
-    setStartedAt(new Date().toLocaleTimeString('en-IN'));
+    const startStr = new Date().toLocaleTimeString('en-IN');
+    setStartedAt(startStr);
 
-    const updatedSteps = [...steps];
-    for (let i = 0; i < updatedSteps.length; i++) {
-      setCurrentStepIdx(i);
-      updatedSteps[i] = { ...updatedSteps[i], status: 'PROCESSING' };
-      setSteps([...updatedSteps]);
+    const currentSteps = [...steps];
 
-      await new Promise((r) => setTimeout(r, STEP_DELAYS_MS[i]));
+    for (let i = 0; i < currentSteps.length; i++) {
+      if (!isMountedRef.current) return;
 
-      updatedSteps[i] = {
-        ...updatedSteps[i],
+      // Mark current step as PROCESSING
+      currentSteps[i] = { ...currentSteps[i], status: 'PROCESSING' };
+      setSteps([...currentSteps]);
+
+      // Dynamic step delay per step (1.2s to 2.2s)
+      const delayMs = 1200 + (i % 3) * 500;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      if (!isMountedRef.current) return;
+
+      // Mark current step as COMPLETED
+      currentSteps[i] = {
+        ...currentSteps[i],
         status: 'COMPLETED',
         completedAt: new Date().toLocaleTimeString('en-IN'),
       };
-      setSteps([...updatedSteps]);
+      setSteps([...currentSteps]);
     }
 
-    setCurrentStepIdx(null);
+    if (!isMountedRef.current) return;
+
     setRunning(false);
-    setCompletedAt(new Date().toLocaleTimeString('en-IN'));
-    completeExecution(updatedSteps);
+    const endStr = new Date().toLocaleTimeString('en-IN');
+    setCompletedAt(endStr);
+    completeExecution(currentSteps);
   }, [running, isComplete, steps, completeExecution]);
 
   function getStatusIcon(status: ExecutionStepStatus, idx: number) {
@@ -76,7 +102,7 @@ export default function RecoveryExecutionPage() {
   }
 
   const completedCount = steps.filter((s) => s.status === 'COMPLETED').length;
-  const progress = Math.round((completedCount / steps.length) * 100);
+  const progress = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
     <EnterpriseShell>
@@ -92,13 +118,13 @@ export default function RecoveryExecutionPage() {
               <div>
                 <h2 className="text-base font-bold text-slate-900">Recovery Execution & SAP Orchestration Console</h2>
                 <p className="text-xs text-slate-500">
-                  Live execution of 5 simulated SAP actions — Incident DIS-2026-001
+                  Live execution of {steps.length} simulated SAP actions — Incident DIS-2026-001
                 </p>
               </div>
             </div>
             {isComplete && (
-              <span className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
-                ✓ ALL ACTIONS COMPLETE
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                ✓ ALL {steps.length} ACTIONS COMPLETE
               </span>
             )}
           </div>
@@ -129,22 +155,35 @@ export default function RecoveryExecutionPage() {
         {/* ── Strategy Reminder ─────────────────────────────────── */}
         {isApproved && (
           <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
-                <p className="text-[10px] text-slate-400 uppercase font-bold">Executing Strategy</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Executing Strategy</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Approved Strategy: {activeStrategy?.name || 'Combined Recovery'}
+                  </span>
+                  {isOverride && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                      ⚠ Human Choice
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm font-bold text-slate-900">
-                  {approvedStrategy?.name || 'Combined Recovery (Multi-Modal Transfer + Priority Air)'}
+                  {activeStrategy?.name || 'Combined Recovery (Multi-Modal Transfer + Priority Air)'}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Target resolution: {activeStrategy?.recovery_time_days ?? 1} {(activeStrategy?.recovery_time_days ?? 1) === 1 ? 'day' : 'days'} • Risk: {activeStrategy?.risk_level ?? 'LOW'}
                 </p>
               </div>
               <div className="flex gap-4 text-xs">
                 {[
-                  { label: 'Cost', value: '₹2.1L' },
-                  { label: 'Recovery Time', value: '1 Day' },
-                  { label: 'Revenue Protected', value: '₹24.2L' },
-                  { label: 'Score', value: '94.0' },
+                  { label: 'Cost', value: activeStrategy ? `₹${(activeStrategy.cost_inr / 100000).toFixed(1)}L` : '₹2.1L' },
+                  { label: 'Recovery Time', value: activeStrategy ? `${activeStrategy.recovery_time_days} ${activeStrategy.recovery_time_days === 1 ? 'Day' : 'Days'}` : '1 Day' },
+                  { label: 'Revenue Protected', value: activeStrategy ? `₹${(activeStrategy.revenue_protected_inr / 100000).toFixed(1)}L` : '₹24.2L' },
+                  { label: 'Score', value: activeStrategy ? activeStrategy.overall_score.toFixed(1) : '94.0' },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="text-center">
-                    <p className="text-[10px] text-slate-400 uppercase">{kpi.label}</p>
+                  <div key={kpi.label} className="text-center px-3 py-1.5 bg-slate-50 rounded border border-slate-100">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">{kpi.label}</p>
                     <p className="text-sm font-bold font-mono text-slate-800">{kpi.value}</p>
                   </div>
                 ))}
@@ -180,7 +219,7 @@ export default function RecoveryExecutionPage() {
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-slate-900">Simulated SAP Action Pipeline</p>
+                <p className="text-sm font-bold text-slate-900">Simulated SAP Action Pipeline ({steps.length} Steps)</p>
                 <p className="text-xs text-slate-500">
                   Actions executed sequentially. All operations are tagged <code className="bg-slate-100 px-1 rounded text-[10px]">[SIMULATED SAP ACTION]</code> for demonstration purposes.
                 </p>
@@ -189,12 +228,12 @@ export default function RecoveryExecutionPage() {
                 <button
                   onClick={runExecution}
                   disabled={running}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-xs font-bold rounded-md transition"
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-xs font-bold rounded-md transition cursor-pointer"
                 >
                   {running ? (
-                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Executing…</>
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Executing Pipeline…</>
                   ) : (
-                    <><PlayCircle className="w-3.5 h-3.5" /> Execute Simulated SAP Recovery</>
+                    <><PlayCircle className="w-3.5 h-3.5" /> Launch Recovery Execution</>
                   )}
                 </button>
               )}
@@ -207,8 +246,8 @@ export default function RecoveryExecutionPage() {
                   <div
                     key={step.id}
                     className={`p-4 flex items-start gap-4 transition-all ${
-                      step.status === 'COMPLETED' ? 'bg-emerald-50' :
-                      step.status === 'PROCESSING' ? 'bg-sky-50' :
+                      step.status === 'COMPLETED' ? 'bg-emerald-50/70' :
+                      step.status === 'PROCESSING' ? 'bg-sky-50 border-l-4 border-l-sky-500' :
                       'bg-white'
                     }`}
                   >
@@ -227,18 +266,18 @@ export default function RecoveryExecutionPage() {
                         )}
                       </div>
                       <p className={`text-xs leading-relaxed ${
-                        step.status === 'COMPLETED' ? 'text-slate-700' :
-                        step.status === 'PROCESSING' ? 'text-sky-800 font-semibold' :
-                        'text-slate-400'
+                        step.status === 'COMPLETED' ? 'text-slate-800 font-semibold' :
+                        step.status === 'PROCESSING' ? 'text-sky-900 font-bold' :
+                        'text-slate-500'
                       }`}>
                         {step.action}
                       </p>
                     </div>
 
                     <div className="shrink-0 text-[10px] font-bold">
-                      {step.status === 'COMPLETED' && <span className="text-emerald-600">DONE</span>}
-                      {step.status === 'PROCESSING' && <span className="text-sky-600">RUNNING</span>}
-                      {step.status === 'PENDING' && <span className="text-slate-300">QUEUED</span>}
+                      {step.status === 'COMPLETED' && <span className="text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">COMPLETED</span>}
+                      {step.status === 'PROCESSING' && <span className="text-sky-600 bg-sky-100 px-2 py-0.5 rounded animate-pulse">PROCESSING</span>}
+                      {step.status === 'PENDING' && <span className="text-slate-400 bg-slate-100 px-2 py-0.5 rounded">QUEUED</span>}
                     </div>
                   </div>
                 );
@@ -251,11 +290,11 @@ export default function RecoveryExecutionPage() {
         {isComplete && (
           <div className="bg-emerald-50 border-2 border-emerald-400 rounded-lg p-5 space-y-4">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="w-6 h-6 text-emerald-600" />
+              <ShieldCheck className="w-6 h-6 text-emerald-600 shrink-0" />
               <div>
                 <p className="text-base font-bold text-emerald-900">Recovery Execution Complete</p>
                 <p className="text-xs text-emerald-700">
-                  All 5 SAP actions executed successfully. Delay mitigated: 7 Days → 1 Day. Revenue protected: ₹24.2L.
+                  All {steps.length} SAP actions executed successfully for <strong>{activeStrategy?.name}</strong>. Delay mitigated: 7 Days → {activeStrategy?.recovery_time_days ?? 1} {(activeStrategy?.recovery_time_days ?? 1) === 1 ? 'Day' : 'Days'}. Revenue protected: ₹{activeStrategy ? (activeStrategy.revenue_protected_inr / 100000).toFixed(1) : '24.2'}L.
                 </p>
               </div>
             </div>
