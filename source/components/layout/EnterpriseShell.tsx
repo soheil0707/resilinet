@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
@@ -11,6 +11,10 @@ import { Loader2 } from 'lucide-react';
 export function EnterpriseShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+
+  // Navigation states for mobile drawer and sidebar compact mode
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -45,11 +49,28 @@ export function EnterpriseShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <main className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-6">
+    <div className="flex min-h-screen bg-slate-50 overflow-x-hidden">
+      {/* ── Enterprise Sidebar (Desktop static + Mobile drawer) ── */}
+      <Sidebar
+        isMobileOpen={isMobileNavOpen}
+        onMobileClose={() => setIsMobileNavOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+      />
+
+      {/* ── Main Viewport Content ── */}
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
+        {/* Global Enterprise Header */}
+        <Header
+          onMobileMenuClick={() => setIsMobileNavOpen(true)}
+          isMobileMenuOpen={isMobileNavOpen}
+        />
+
+        {/* Page Content Landmark */}
+        <main
+          id="main-content"
+          className="flex-1 p-3 sm:p-5 lg:p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-6"
+        >
           {children}
         </main>
       </div>

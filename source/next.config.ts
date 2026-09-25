@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* ResiliNet enterprise config */
+  serverExternalPackages: ['@sap/hana-client'],
 };
 
 export default nextConfig;

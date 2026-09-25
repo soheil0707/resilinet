@@ -44,11 +44,42 @@ export interface ResilienceRecord {
   completed_at: string;
 }
 
+/**
+ * Centralized backward-compatibility normalizer for legacy STRAT-* IDs stored in browser localStorage.
+ * Maps legacy demo IDs to canonical SAP HANA strategy IDs:
+ * STRAT-004 (Combined Recovery)       -> STR-001
+ * STRAT-003 (Air Expedite Logistics)  -> STR-002
+ * STRAT-001 (Alternate Supplier)      -> STR-003
+ * STRAT-002 (Secondary Plant Buffer)  -> STR-004
+ */
+export function normalizeStrategy(strategy: RecoveryStrategy | null): RecoveryStrategy | null {
+  if (!strategy) return null;
+  const legacyMap: Record<string, { id: string; name?: string }> = {
+    'STRAT-004': { id: 'STR-001', name: 'Combined Recovery (Multi-Modal Transfer + Priority Air)' },
+    'STRAT-003': { id: 'STR-002', name: 'Air Expedite Only (Charter Freight)' },
+    'STRAT-001': { id: 'STR-003', name: 'Multi-Supplier Allocation (Dual-Sourcing)' },
+    'STRAT-002': { id: 'STR-004', name: 'Secondary Plant Buffer (Inventory Transfer)' },
+  };
+
+  const mapped = legacyMap[strategy.id];
+  if (mapped) {
+    return {
+      ...strategy,
+      id: mapped.id,
+      name: strategy.name || mapped.name || strategy.name,
+      is_recommended: mapped.id === 'STR-001' ? true : strategy.is_recommended,
+    };
+  }
+
+  return strategy;
+}
+
 export function getExecutionStepsForStrategy(strategy?: RecoveryStrategy | null): ExecutionStep[] {
-  const stratId = strategy?.id || 'STRAT-004';
+  const normStrategy = normalizeStrategy(strategy ?? null);
+  const stratId = normStrategy?.id || 'STR-001';
 
   switch (stratId) {
-    case 'STRAT-003': // EXPEDITED AIR LOGISTICS (7 steps)
+    case 'STR-002': // EXPEDITED AIR LOGISTICS (7 steps)
       return [
         {
           id: 'STEP-01',
@@ -101,7 +132,7 @@ export function getExecutionStepsForStrategy(strategy?: RecoveryStrategy | null)
         },
       ];
 
-    case 'STRAT-002': // INVENTORY TRANSFER (6 steps)
+    case 'STR-004': // INVENTORY TRANSFER (6 steps)
       return [
         {
           id: 'STEP-01',
@@ -147,7 +178,7 @@ export function getExecutionStepsForStrategy(strategy?: RecoveryStrategy | null)
         },
       ];
 
-    case 'STRAT-001': // ALTERNATE SUPPLIER (8 steps)
+    case 'STR-003': // ALTERNATE SUPPLIER (8 steps)
       return [
         {
           id: 'STEP-01',
@@ -207,7 +238,7 @@ export function getExecutionStepsForStrategy(strategy?: RecoveryStrategy | null)
         },
       ];
 
-    case 'STRAT-004': // COMBINED RECOVERY (6 steps)
+    case 'STR-001': // COMBINED RECOVERY (6 steps)
     default:
       return [
         {
@@ -339,11 +370,15 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
       if (raw) {
         const parsed: PersistedState = JSON.parse(raw);
         setWorkflowStateInternal(parsed.workflowState || 'DETECTED');
-        setSelectedStrategyInternal(parsed.selectedStrategy || null);
-        setApprovedStrategyInternal(parsed.approvedStrategy || null);
+        const rawSelected = parsed.selectedStrategy || null;
+        const rawApproved = parsed.approvedStrategy || null;
+        const normSelected = normalizeStrategy(rawSelected);
+        const normApproved = normalizeStrategy(rawApproved);
+        setSelectedStrategyInternal(normSelected);
+        setApprovedStrategyInternal(normApproved);
         setIsOverrideInternal(parsed.isOverride ?? false);
         setResilienceRecords(parsed.resilienceRecords || []);
-        const activeStrat = parsed.approvedStrategy || parsed.selectedStrategy;
+        const activeStrat = normApproved || normSelected;
         setExecutionSteps(
           parsed.executionSteps && parsed.executionSteps.length > 0
             ? parsed.executionSteps
@@ -392,29 +427,31 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedStrategy = useCallback(
     (strategy: RecoveryStrategy | null, overrideParam?: boolean) => {
-      setSelectedStrategyInternal(strategy);
-      setApprovedStrategyInternal(strategy);
-      const overrideVal = overrideParam !== undefined ? overrideParam : (strategy ? strategy.id !== 'STRAT-004' : false);
+      const normalized = normalizeStrategy(strategy);
+      setSelectedStrategyInternal(normalized);
+      setApprovedStrategyInternal(normalized);
+      const overrideVal = overrideParam !== undefined ? overrideParam : (normalized ? !(normalized.id === 'STR-001' || normalized.is_recommended) : false);
       setIsOverrideInternal(overrideVal);
-      const dynamicSteps = getExecutionStepsForStrategy(strategy);
+      const dynamicSteps = getExecutionStepsForStrategy(normalized);
       setExecutionSteps(dynamicSteps);
       const current = stateRef.current;
-      persist(current.workflowState, strategy, strategy, overrideVal, dynamicSteps, current.resilienceRecords);
+      persist(current.workflowState, normalized, normalized, overrideVal, dynamicSteps, current.resilienceRecords);
     },
     [persist]
   );
 
   const setApprovedStrategy = useCallback(
     (strategy: RecoveryStrategy | null, overrideParam?: boolean) => {
-      setApprovedStrategyInternal(strategy);
+      const normalized = normalizeStrategy(strategy);
+      setApprovedStrategyInternal(normalized);
       const current = stateRef.current;
-      const overrideVal = overrideParam !== undefined ? overrideParam : (strategy ? strategy.id !== 'STRAT-004' : current.isOverride);
+      const overrideVal = overrideParam !== undefined ? overrideParam : (normalized ? !(normalized.id === 'STR-001' || normalized.is_recommended) : current.isOverride);
       setIsOverrideInternal(overrideVal);
-      if (strategy) {
-        setSelectedStrategyInternal(strategy);
-        const dynamicSteps = getExecutionStepsForStrategy(strategy);
+      if (normalized) {
+        setSelectedStrategyInternal(normalized);
+        const dynamicSteps = getExecutionStepsForStrategy(normalized);
         setExecutionSteps(dynamicSteps);
-        persist(current.workflowState, strategy, strategy, overrideVal, dynamicSteps, current.resilienceRecords);
+        persist(current.workflowState, normalized, normalized, overrideVal, dynamicSteps, current.resilienceRecords);
       } else {
         persist(current.workflowState, current.selectedStrategy, null, overrideVal, current.executionSteps, current.resilienceRecords);
       }
@@ -440,15 +477,15 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
 
       const newRecord: ResilienceRecord = {
         id: `MEM-2026-${Date.now().toString().slice(-4)}`,
-        disruption_id: 'DIS-2026-001',
+        disruption_id: 'DIS-1001',
         crisis_title: 'Global Metals Ltd. (S-104) Supplier Shutdown',
         supplier: 'Global Metals Ltd. (S-104)',
         material: 'Steering Assembly (M-101)',
         plant: 'PL-01 Hyderabad Assembly Plant',
         ai_recommended_strategy: 'Combined Recovery (Multi-Modal Transfer + Priority Air)',
         human_selected_strategy: executedStrat?.name || 'Combined Recovery',
-        is_override: current.isOverride || (executedStrat ? executedStrat.id !== 'STRAT-004' : false),
-        cost_inr: executedStrat?.cost_inr || 210000,
+        is_override: current.isOverride || (executedStrat ? !(executedStrat.id === 'STR-001' || executedStrat.is_recommended) : false),
+        cost_inr: executedStrat?.cost_inr || 185000,
         recovery_time_days: executedStrat?.recovery_time_days || 1,
         revenue_protected_inr: executedStrat?.revenue_protected_inr || 2420000,
         risk_level: executedStrat?.risk_level || 'LOW',

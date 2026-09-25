@@ -42,6 +42,43 @@ export default function IntegrationHubPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  const [hanaStatus, setHanaStatus] = useState<{
+    schema: string;
+    isLive: boolean;
+    checked: boolean;
+  }>({
+    schema: 'HACKFEST0145',
+    isLive: false,
+    checked: false,
+  });
+
+  React.useEffect(() => {
+    fetch('/api/hana/test')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setHanaStatus({
+            schema: data.schema || 'HACKFEST0145',
+            isLive: true,
+            checked: true,
+          });
+        } else {
+          setHanaStatus({
+            schema: 'HACKFEST0145',
+            isLive: false,
+            checked: true,
+          });
+        }
+      })
+      .catch(() => {
+        setHanaStatus({
+          schema: 'HACKFEST0145',
+          isLive: false,
+          checked: true,
+        });
+      });
+  }, []);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(JSON.stringify(DEMO_SAMPLE_NORMALIZED_EVENT, null, 2));
     setCopiedCode(true);
@@ -109,6 +146,77 @@ export default function IntegrationHubPage() {
             <span className="text-[11px] text-slate-400 font-mono shrink-0">
               11 Modular Connectors Configured
             </span>
+          </div>
+        </div>
+
+        {/* ── Real SAP HANA Cloud Connectivity Status Section ── */}
+        <div className="bg-white rounded-xl border-2 border-slate-300 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900">
+                    SAP HANA Cloud
+                  </h2>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono border ${
+                    hanaStatus.isLive
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-red-50 text-red-800 border-red-300'
+                  }`}>
+                    Connection: {hanaStatus.isLive ? 'LIVE' : 'UNAVAILABLE'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Authoritative Operational Single Source of Truth for ResiliNet
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-500">Schema:</span>
+              <span className="font-mono font-bold bg-slate-100 text-slate-800 px-2 py-1 rounded border border-slate-200">
+                {hanaStatus.schema}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Service Type</span>
+              <span className="font-bold text-slate-800 mt-0.5 block">SAP HANA Cloud</span>
+              <span className="text-[10px] text-slate-500">Native TLS 1.3 Driver</span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Assigned Schema</span>
+              <span className="font-mono font-bold text-slate-900 mt-0.5 block">{hanaStatus.schema}</span>
+              <span className="text-[10px] text-slate-500">Production Tenant</span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Operational Role</span>
+              <span className="font-bold text-emerald-700 mt-0.5 block">Single Source of Truth</span>
+              <span className="text-[10px] text-slate-500">Disruptions &amp; Executions</span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Connection State</span>
+              <span className={`font-mono font-bold mt-0.5 block ${hanaStatus.isLive ? 'text-emerald-700' : 'text-red-600'}`}>
+                {hanaStatus.isLive ? 'LIVE' : 'UNAVAILABLE'}
+              </span>
+              <span className="text-[10px] text-slate-500">Validated via /api/hana/test</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-950 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-amber-900">
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>Integration Scope &amp; Architectural Boundaries:</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-amber-900">
+              SAP HANA Cloud (Schema: <strong>{hanaStatus.schema}</strong>) is the active operational database powering live disruption models, strategy rankings, AI consensus decisions, and recovery execution tracking.
+              ResiliNet does not claim live SAP S/4HANA integration or live MM/TM/EWM/PP/SD transactions. Enterprise ERP module adapters in the catalog below are conceptual integration templates in prototype mode.
+            </p>
           </div>
         </div>
 
