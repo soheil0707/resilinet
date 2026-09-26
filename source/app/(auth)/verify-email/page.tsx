@@ -109,25 +109,25 @@ function VerifyEmailContent() {
       {/* Success State */}
       {status === 'success' && (
         <div className="text-center py-6 space-y-4">
-          <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 mx-auto flex items-center justify-center text-emerald-600">
+          <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 mx-auto flex items-center justify-center text-emerald-600 shadow-xs">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <h3 className="text-lg font-bold text-slate-900">
-              Email Verified Successfully
+              Corporate Email Verified Successfully
             </h3>
             <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-              {message}
+              Your corporate email address has been successfully verified. Your ResiliNet account is now activated and ready for secure sign-in.
             </p>
           </div>
 
-          <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-left text-xs text-emerald-900 space-y-1">
+          <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-left text-xs text-emerald-900 space-y-1">
             <div className="flex items-center gap-1.5 font-semibold text-emerald-800">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>SAP HANA Cloud Verification Confirmed</span>
+              <span>Email Verification Confirmed</span>
             </div>
             <p className="text-[11px] text-emerald-700">
-              Your account security status has been updated in <code className="font-mono bg-emerald-100 px-1 py-0.5 rounded">USER_ACCOUNT.EMAIL_VERIFIED = 1</code>. You may now authenticate.
+              Your account is now eligible for authentication.
             </p>
           </div>
 
