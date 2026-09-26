@@ -24,12 +24,15 @@ export async function middleware(request: NextRequest) {
   const isAuthPage =
     pathname === '/login' ||
     pathname === '/register' ||
-    pathname === '/signup';
+    pathname === '/signup' ||
+    pathname === '/verify-email';
 
   const isPublicApi =
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/register') ||
-    pathname.startsWith('/api/auth/logout');
+    pathname.startsWith('/api/auth/logout') ||
+    pathname.startsWith('/api/auth/verify-email') ||
+    pathname.startsWith('/api/auth/resend-verification');
 
   if (isPublicApi) {
     return NextResponse.next();

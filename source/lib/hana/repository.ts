@@ -298,6 +298,8 @@ export interface HanaUserAccount {
   CREATED_AT: string;
   UPDATED_AT: string;
   LAST_LOGIN_AT: string | null;
+  EMAIL_VERIFIED: number;
+  VERIFIED_AT: string | null;
 }
 
 export async function getHanaUserByEmail(email: string): Promise<HanaUserAccount | null> {
@@ -323,11 +325,14 @@ export async function createHanaUserAccount(data: {
   passwordHash: string;
   role: string;
   phoneNumber?: string | null;
+  emailVerified?: number;
 }): Promise<HanaUserAccount> {
+  // New users MUST be created with EMAIL_VERIFIED = 0 and VERIFIED_AT = NULL
+  const emailVerified = data.emailVerified !== undefined ? data.emailVerified : 0;
   const sql = `
     INSERT INTO USER_ACCOUNT (
-      USER_ID, FULL_NAME, EMAIL, PASSWORD_HASH, ROLE, PHONE_NUMBER, IS_ACTIVE
-    ) VALUES (?, ?, ?, ?, ?, ?, 1)
+      USER_ID, FULL_NAME, EMAIL, PASSWORD_HASH, ROLE, PHONE_NUMBER, IS_ACTIVE, EMAIL_VERIFIED, VERIFIED_AT
+    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, NULL)
   `;
   await executeHanaDml(sql, [
     data.userId,
@@ -336,6 +341,7 @@ export async function createHanaUserAccount(data: {
     data.passwordHash,
     data.role,
     data.phoneNumber || null,
+    emailVerified,
   ]);
 
   const user = await getHanaUserById(data.userId);
@@ -343,11 +349,114 @@ export async function createHanaUserAccount(data: {
   return user;
 }
 
-export async function updateHanaUserLastLogin(userId: string): Promise<void> {
-  await executeHanaDml(
+export async function updateHanaUserLastLogin(userId: string): Promise<number> {
+  return executeHanaDml(
     'UPDATE USER_ACCOUNT SET LAST_LOGIN_AT = CURRENT_UTCTIMESTAMP, UPDATED_AT = CURRENT_UTCTIMESTAMP WHERE USER_ID = ?',
     [userId]
   );
+}
+
+// ─── ORCH_EMAIL_VERIFICATION (HANA-FIRST EMAIL VERIFICATION) ─────────────────
+
+export interface HanaEmailVerification {
+  VERIFICATION_ID: string;
+  USER_ID: string;
+  TOKEN_HASH: string;
+  EXPIRES_AT: string;
+  CREATED_AT: string;
+  USED_AT: string | null;
+}
+
+/**
+ * Creates an email verification record in SAP HANA Cloud.
+ * Stores only TOKEN_HASH, never the raw token.
+ */
+export async function createEmailVerification(data: {
+  verificationId: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: string;
+}): Promise<number> {
+  const sql = `
+    INSERT INTO ORCH_EMAIL_VERIFICATION (
+      VERIFICATION_ID, USER_ID, TOKEN_HASH, EXPIRES_AT, CREATED_AT, USED_AT
+    ) VALUES (?, ?, ?, ?, CURRENT_UTCTIMESTAMP, NULL)
+  `;
+  return executeHanaDml(sql, [
+    data.verificationId,
+    data.userId,
+    data.tokenHash,
+    data.expiresAt,
+  ]);
+}
+
+/**
+ * Finds an unexpired, unused verification record by token hash.
+ */
+export async function getActiveEmailVerificationByTokenHash(
+  tokenHash: string
+): Promise<HanaEmailVerification | null> {
+  const sql = `
+    SELECT * FROM ORCH_EMAIL_VERIFICATION 
+    WHERE TOKEN_HASH = ? 
+      AND USED_AT IS NULL 
+      AND EXPIRES_AT > CURRENT_UTCTIMESTAMP
+    ORDER BY CREATED_AT DESC
+  `;
+  const rows = await executeHanaQuery<HanaEmailVerification>(sql, [tokenHash]);
+  return rows[0] || null;
+}
+
+/**
+ * Marks a verification token as used (one-time use protection).
+ */
+export async function markEmailVerificationUsed(verificationId: string): Promise<number> {
+  const sql = `
+    UPDATE ORCH_EMAIL_VERIFICATION 
+    SET USED_AT = CURRENT_UTCTIMESTAMP 
+    WHERE VERIFICATION_ID = ? AND USED_AT IS NULL
+  `;
+  return executeHanaDml(sql, [verificationId]);
+}
+
+/**
+ * Marks a user account as verified in USER_ACCOUNT table.
+ */
+export async function markUserEmailVerified(userId: string): Promise<number> {
+  const sql = `
+    UPDATE USER_ACCOUNT 
+    SET EMAIL_VERIFIED = 1, VERIFIED_AT = CURRENT_UTCTIMESTAMP, UPDATED_AT = CURRENT_UTCTIMESTAMP 
+    WHERE USER_ID = ?
+  `;
+  return executeHanaDml(sql, [userId]);
+}
+
+/**
+ * Invalidates / supersedes any existing unused verification tokens for a user.
+ */
+export async function invalidatePendingEmailVerifications(userId: string): Promise<number> {
+  const sql = `
+    UPDATE ORCH_EMAIL_VERIFICATION 
+    SET USED_AT = CURRENT_UTCTIMESTAMP 
+    WHERE USER_ID = ? AND USED_AT IS NULL
+  `;
+  return executeHanaDml(sql, [userId]);
+}
+
+/**
+ * Gets the most recent verification record created for a user to enforce cooldown/rate-limiting.
+ */
+export async function getLatestVerificationForUser(
+  userId: string
+): Promise<HanaEmailVerification | null> {
+  const sql = `
+    SELECT * FROM ORCH_EMAIL_VERIFICATION 
+    WHERE USER_ID = ? 
+    ORDER BY CREATED_AT DESC 
+    LIMIT 1
+  `;
+  const rows = await executeHanaQuery<HanaEmailVerification>(sql, [userId]);
+  return rows[0] || null;
 }
 
 // ─── ORCH_RESILIENCE_MEMORY (HANA-FIRST MEMORY) ──────────────────────────────

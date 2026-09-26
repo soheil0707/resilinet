@@ -59,11 +59,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update last login in SAP HANA
-    await updateHanaUserLastLogin(user.USER_ID).catch((err) => {
-      console.warn('Could not update last login timestamp:', err);
-    });
+    // Mandatory Email Verification Gate: Reject login if EMAIL_VERIFIED != 1
+    if (user.EMAIL_VERIFIED !== 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Please verify your email address before signing in.',
+          unverified: true,
+          email: user.EMAIL,
+        },
+        { status: 403 }
+      );
+    }
 
+    // 4. Assemble session user payload
     const sessionUser = {
       userId: user.USER_ID,
       fullName: user.FULL_NAME,
@@ -72,8 +81,16 @@ export async function POST(req: NextRequest) {
       phoneNumber: user.PHONE_NUMBER,
     };
 
-    // Issue signed JWT session token
+    // 5. Issue signed JWT session token
     const token = await createSessionToken(sessionUser);
+
+    // 6. After credentials validation and session JWT creation, update LAST_LOGIN_AT in SAP HANA
+    try {
+      await updateHanaUserLastLogin(user.USER_ID);
+    } catch (updateError) {
+      // Safe logging without exposing passwords or credentials
+      console.error('Failed to update LAST_LOGIN_AT in SAP HANA:', sanitizeHanaError(updateError));
+    }
 
     const response = NextResponse.json({
       success: true,

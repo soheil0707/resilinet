@@ -30,6 +30,7 @@ export default function RegisterPage() {
   const [role, setRole] = useState<UserRole>('SUPPLY_CHAIN_MANAGER');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +61,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await signUp(email, password, {
+      const result = await signUp(email, password, {
         fullName,
         role,
         phoneNumber,
@@ -68,8 +69,11 @@ export default function RegisterPage() {
         company: 'Astra Motors Manufacturing',
       });
 
-      if (signUpError) {
-        setError(signUpError.message);
+      if (result.error) {
+        setError(result.error.message);
+        setLoading(false);
+      } else if (result.requiresVerification) {
+        setRegisteredEmail(result.email || email);
         setLoading(false);
       } else {
         // Clear any stale local routing state
@@ -80,7 +84,6 @@ export default function RegisterPage() {
             // ignore
           }
         }
-        // Requirement: Redirect directly to Executive Dashboard
         window.location.href = '/';
       }
     } catch (err: unknown) {
@@ -116,18 +119,66 @@ export default function RegisterPage() {
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-lg">
-        <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-200 sm:px-10 space-y-5">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <p className="font-semibold">Registration Notice</p>
-                <p className="text-red-700 text-[11px]">{error}</p>
+        {registeredEmail ? (
+          <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-200 sm:px-10 space-y-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-sky-50 border border-sky-100 mx-auto flex items-center justify-center text-sky-600">
+              <Mail className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-slate-900">
+                Verify Corporate Email
+              </h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                Your enterprise account has been created in SAP HANA Cloud. A secure activation link has been dispatched to:
+              </p>
+              <p className="text-xs font-mono font-bold text-slate-900 bg-slate-100 py-1.5 px-3 rounded-lg inline-block border border-slate-200">
+                {registeredEmail}
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-left text-xs text-amber-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Verification Mandatory Before Sign In</span>
+              </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                SAP HANA Cloud policy requires all enterprise users to confirm corporate email ownership before authentication. You will not be able to log in until your email is verified.
+              </p>
+            </div>
+
+            <div className="pt-2 space-y-3">
+              <Link
+                href="/login"
+                className="w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition shadow-xs"
+              >
+                <span>Proceed to Sign In</span>
+                <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
+              </Link>
+
+              <div className="text-xs text-slate-500">
+                <span>Did not receive the verification link? </span>
+                <Link
+                  href="/verify-email"
+                  className="text-sky-600 hover:text-sky-700 font-semibold"
+                >
+                  Resend Verification Email
+                </Link>
               </div>
             </div>
-          )}
+          </div>
+        ) : (
+          <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-200 sm:px-10 space-y-5">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold">Registration Notice</p>
+                  <p className="text-red-700 text-[11px]">{error}</p>
+                </div>
+              </div>
+            )}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
             {/* Full Name */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
@@ -286,6 +337,7 @@ export default function RegisterPage() {
             </Link>
           </div>
         </div>
+      )}
 
         <p className="mt-4 text-center text-[11px] text-slate-400">
           SAP HANA Cloud Protected • Parameterized SQL & Bcrypt Password Hashing

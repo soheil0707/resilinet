@@ -29,11 +29,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnverified, setIsUnverified] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsUnverified(false);
 
     if (!email.trim()) {
       setError('Please enter your corporate email address.');
@@ -47,9 +49,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { error: signInError } = await signIn(email, password);
+      const { error: signInError, unverified } = await signIn(email, password);
       if (signInError) {
         setError(signInError.message);
+        setIsUnverified(Boolean(unverified));
         setLoading(false);
       } else {
         // Enforce Phase 34 requirement:
@@ -180,11 +183,36 @@ export default function LoginPage() {
 
           {/* Validation Error Alert */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <p className="font-semibold">Authentication Failed</p>
-                <p className="text-red-700 text-[11px]">{error}</p>
+            <div
+              className={`p-3 rounded-lg text-xs flex items-start gap-2.5 ${
+                isUnverified
+                  ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}
+            >
+              <AlertCircle
+                className={`w-4 h-4 shrink-0 mt-0.5 ${
+                  isUnverified ? 'text-amber-600' : 'text-red-600'
+                }`}
+              />
+              <div className="space-y-1">
+                <p className="font-semibold">
+                  {isUnverified ? 'Email Verification Required' : 'Authentication Failed'}
+                </p>
+                <p className={`text-[11px] ${isUnverified ? 'text-amber-700' : 'text-red-700'}`}>
+                  {error}
+                </p>
+                {isUnverified && (
+                  <div className="pt-1">
+                    <Link
+                      href="/verify-email"
+                      className="font-semibold text-sky-700 hover:text-sky-800 underline inline-flex items-center gap-1"
+                    >
+                      <span>Need a new verification link? Resend here</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -52,7 +52,10 @@ interface AuthContextType {
   isConfigured: boolean;
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error: Error | null; unverified?: boolean }>;
   signUp: (
     email: string,
     password: string,
@@ -63,7 +66,7 @@ interface AuthContextType {
       department?: string;
       company?: string;
     }
-  ) => Promise<{ error: Error | null }>;
+  ) => Promise<{ error: Error | null; requiresVerification?: boolean; email?: string }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -162,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok || !data.success) {
         return {
           error: new Error(data.error || 'Authentication failed. Please verify your credentials.'),
+          unverified: Boolean(data.unverified),
         };
       }
 
@@ -245,6 +249,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok || !data.success) {
         return {
           error: new Error(data.error || 'Registration failed in SAP HANA Cloud'),
+        };
+      }
+
+      if (data.requiresVerification) {
+        return {
+          error: null,
+          requiresVerification: true,
+          email: data.email || email,
         };
       }
 
