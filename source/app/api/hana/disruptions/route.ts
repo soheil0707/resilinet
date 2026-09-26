@@ -1,35 +1,27 @@
-import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/auth/session';
 import { getDisruptions, getDisruptionContext } from '@/lib/hana/repository';
 import { sanitizeHanaError } from '@/lib/hana/client';
 
-// Explicitly use Node.js runtime for native SAP HANA driver
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // 1. Verify authenticated Supabase user session
-    const supabase = await createServerSupabaseClient();
-    if (supabase) {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        return NextResponse.json(
-          { error: 'Unauthorized: Valid Supabase session required' },
-          { status: 401 }
-        );
-      }
+    // 1. Verify authenticated HANA user session
+    const user = await getSessionUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Active HANA session required' },
+        { status: 401 }
+      );
     }
 
     // 2. Query live disruption records from SAP HANA Cloud ORCH_DISRUPTION and V_ORCH_DISRUPTION_CONTEXT
     const { searchParams } = new URL(request.url);
     const disruptionId = searchParams.get('disruptionId') || undefined;
     const disruptions = await getDisruptions(disruptionId);
-    let disruptionContext: any[] = [];
+    let disruptionContext: unknown[] = [];
     try {
       disruptionContext = await getDisruptionContext(disruptionId);
     } catch (ctxErr) {

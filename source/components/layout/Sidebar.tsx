@@ -24,32 +24,31 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Radio,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useNotifications } from '@/lib/hana/notification-context';
 
-export interface NavItem {
+export interface NavItemConfig {
   label: string;
   href: string;
   icon: React.ElementType;
-  badge?: {
-    text: string;
-    variant: 'critical' | 'warning' | 'info' | 'healthy';
-  };
+  badgeKey?: 'earlyWarning' | 'disruption' | 'approval' | 'execution';
 }
 
-export interface NavGroup {
+export interface NavGroupConfig {
   id: string;
   phaseNumber: string;
   label: string;
-  items: NavItem[];
+  groupBadgeKey: 'monitorDetect' | 'analyzeSimulate' | 'decideApprove' | 'executeLearn';
+  items: NavItemConfig[];
 }
 
-export const NAV_GROUPS: NavGroup[] = [
+export const NAV_GROUPS: NavGroupConfig[] = [
   {
     id: 'monitor-detect',
     phaseNumber: '01',
     label: 'MONITOR & DETECT',
+    groupBadgeKey: 'monitorDetect',
     items: [
       {
         label: 'Executive Dashboard',
@@ -60,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Early Warning',
         href: '/early-warning',
         icon: AlertTriangle,
-        badge: { text: 'Alert', variant: 'warning' },
+        badgeKey: 'earlyWarning',
       },
       {
         label: 'Supply Chain Map',
@@ -78,18 +77,18 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'analyze-simulate',
     phaseNumber: '02',
     label: 'ANALYZE & SIMULATE',
+    groupBadgeKey: 'analyzeSimulate',
     items: [
       {
         label: 'Disruptions',
         href: '/disruptions',
         icon: AlertOctagon,
-        badge: { text: 'DIS-1001', variant: 'critical' },
+        badgeKey: 'disruption',
       },
       {
         label: 'Crisis Analysis',
         href: '/crisis-analysis',
         icon: Activity,
-        badge: { text: 'Active', variant: 'critical' },
       },
       {
         label: 'AI Command Center',
@@ -107,6 +106,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'decide-approve',
     phaseNumber: '03',
     label: 'DECIDE & APPROVE',
+    groupBadgeKey: 'decideApprove',
     items: [
       {
         label: 'Recovery Strategies',
@@ -122,7 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Approval Center',
         href: '/approval-center',
         icon: CheckSquare,
-        badge: { text: '1', variant: 'warning' },
+        badgeKey: 'approval',
       },
     ],
   },
@@ -130,12 +130,13 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'execute-learn',
     phaseNumber: '04',
     label: 'EXECUTE & LEARN',
+    groupBadgeKey: 'executeLearn',
     items: [
       {
         label: 'Recovery Execution',
         href: '/recovery-execution',
         icon: PlayCircle,
-        badge: { text: 'EXE-1001', variant: 'info' },
+        badgeKey: 'execution',
       },
       {
         label: 'Resilience Memory',
@@ -166,7 +167,8 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isConfigured, profile, user, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
+  const { counts } = useNotifications();
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -192,18 +194,37 @@ export function Sidebar({
     router.refresh();
   };
 
-  // Helper to determine if a group contains the current active route
-  const isGroupActive = (group: NavGroup) => {
+  const isGroupActive = (group: NavGroupConfig) => {
     return group.items.some((item) =>
       item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
     );
   };
 
-  // Shared Navigation Content Component
+  // Helper to get real unread badge count for individual items (NEVER hardcoded)
+  const getItemBadgeCount = (badgeKey?: string): number => {
+    if (!badgeKey) return 0;
+    switch (badgeKey) {
+      case 'earlyWarning':
+        return counts.monitorDetect;
+      case 'disruption':
+        return counts.analyzeSimulate;
+      case 'approval':
+        return counts.decideApprove;
+      case 'execution':
+        return counts.executeLearn;
+      default:
+        return 0;
+    }
+  };
+
   const renderNavContent = (collapsed: boolean) => (
     <div className="flex flex-col h-full bg-white select-none">
       {/* Brand Header */}
-      <div className={`p-4 border-b border-slate-200 bg-slate-50/60 flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-3 shrink-0`}>
+      <div
+        className={`p-4 border-b border-slate-200 bg-slate-50/60 flex items-center ${
+          collapsed ? 'justify-center' : 'justify-between'
+        } gap-3 shrink-0`}
+      >
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-white border border-slate-200 shadow-2xs">
             <Image
@@ -236,7 +257,7 @@ export function Sidebar({
         {isMobileOpen ? (
           <button
             onClick={onMobileClose}
-            className="md:hidden p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-md transition"
+            className="md:hidden p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-md transition cursor-pointer"
             aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
@@ -245,7 +266,7 @@ export function Sidebar({
           onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              className="hidden lg:flex p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded transition"
+              className="hidden lg:flex p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded transition cursor-pointer"
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
@@ -266,13 +287,14 @@ export function Sidebar({
       >
         {NAV_GROUPS.map((group) => {
           const groupActive = isGroupActive(group);
+          const groupUnread = counts[group.groupBadgeKey] || 0;
 
           return (
             <div key={group.id} className="space-y-1">
               {/* Group Phase Header */}
               {!collapsed ? (
                 <div className="flex items-center justify-between px-2.5 py-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <span
                       className={`text-[10px] font-bold font-mono px-1 py-0.2 rounded ${
                         groupActive
@@ -290,8 +312,15 @@ export function Sidebar({
                       {group.label}
                     </span>
                   </div>
-                  {groupActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
+
+                  {/* Real HANA Unread Count Badge - ONLY displayed when > 0 */}
+                  {groupUnread > 0 && (
+                    <span
+                      className="px-1.5 py-0.2 rounded-full text-[10px] font-bold font-mono bg-rose-100 text-rose-800 border border-rose-200"
+                      title={`${groupUnread} unread notifications in ${group.label}`}
+                    >
+                      {groupUnread}
+                    </span>
                   )}
                 </div>
               ) : (
@@ -316,6 +345,8 @@ export function Sidebar({
                     item.href === '/'
                       ? pathname === '/'
                       : pathname.startsWith(item.href);
+
+                  const itemUnread = getItemBadgeCount(item.badgeKey);
 
                   return (
                     <Link
@@ -350,19 +381,10 @@ export function Sidebar({
                             {item.label}
                           </span>
 
-                          {item.badge && (
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0 ${
-                                item.badge.variant === 'critical'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : item.badge.variant === 'warning'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                  : item.badge.variant === 'healthy'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : 'bg-sky-100 text-sky-800 border border-sky-200'
-                              }`}
-                            >
-                              {item.badge.text}
+                          {/* Item Badge ONLY displayed if real unread count > 0 */}
+                          {itemUnread > 0 && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full shrink-0 bg-rose-100 text-rose-800 border border-rose-200 font-mono">
+                              {itemUnread}
                             </span>
                           )}
                         </>
@@ -420,7 +442,7 @@ export function Sidebar({
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={handleSignOut}
-              className="p-2 text-slate-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+              className="p-2 text-slate-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />

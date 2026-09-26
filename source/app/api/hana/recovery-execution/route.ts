@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getRecoveryExecutions, updateRecoveryExecutionCompleted } from '@/lib/hana/repository';
+import { getSessionUser } from '@/lib/auth/session';
+import {
+  getRecoveryExecutions,
+  updateRecoveryExecutionCompleted,
+  createHanaResilienceMemory,
+  createHanaNotification,
+} from '@/lib/hana/repository';
 import { sanitizeHanaError } from '@/lib/hana/client';
 
 // Explicitly use Node.js runtime for native SAP HANA driver
@@ -9,20 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Verify authenticated Supabase session
-    const supabase = await createServerSupabaseClient();
-    if (supabase) {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        return NextResponse.json(
-          { error: 'Unauthorized: Valid Supabase session required' },
-          { status: 401 }
-        );
-      }
+    // 1. Verify authenticated HANA session
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Active HANA session required' },
+        { status: 401 }
+      );
     }
 
     // 2. Read optional disruptionId query parameter
@@ -57,51 +55,20 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    // 1. Verify authenticated Supabase session
-    const supabase = await createServerSupabaseClient();
-    if (!supabase) {
+    // 1. Verify authenticated HANA session
+    const user = await getSessionUser(req);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Authentication required' },
+        { success: false, error: 'Unauthorized: Active HANA session required' },
         { status: 401 }
       );
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // 2. Authorization: Check role if available in profiles or user_metadata
-    let userRole: string | null = null;
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.role) {
-        userRole = profile.role;
-      }
-    } catch {
-      // Profiles query non-blocking fallback
-    }
-
-    if (!userRole && user.user_metadata?.role) {
-      userRole = user.user_metadata.role as string;
-    }
-
+    // 2. Authorization: Check role
     const AUTHORIZED_ROLES = ['SUPPLY_CHAIN_MANAGER', 'ADMIN'];
-    if (userRole && !AUTHORIZED_ROLES.includes(userRole)) {
+    if (!AUTHORIZED_ROLES.includes(user.role)) {
       return NextResponse.json(
-        { success: false, error: 'You are not authorized to complete this execution' },
+        { success: false, error: 'Forbidden: You are not authorized to complete this execution' },
         { status: 403 }
       );
     }
@@ -133,7 +100,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Phase 32C-A safety constraint: Only EXE-1001 is permitted
+    // Controlled scope guard: Only EXE-1001 is permitted in this phase
     if (executionId !== 'EXE-1001') {
       return NextResponse.json(
         {
@@ -171,22 +138,63 @@ export async function PATCH(req: NextRequest) {
     );
 
     if (result.success && result.affectedRows === 1) {
+      const completionTime = new Date().toISOString();
+
+      // Step 4.4 & 3: Create resilience memory record in SAP HANA Cloud
+      const memoryId = `MEM-${Date.now().toString(36).toUpperCase()}`;
+      await createHanaResilienceMemory({
+        memoryId,
+        disruptionId: 'DIS-1001',
+        executionId: 'EXE-1001',
+        strategyId: 'STR-001',
+        memoryType: 'SUPPLIER_DELAY_RECOVERY',
+        title: 'Global Metals Ltd. (S-104) Disruption Recovery Completed',
+        summary: 'Combined recovery via road express and air charter buffer leg successfully executed.',
+        decision: 'Authorized dual-modal recovery strategy STR-001 to prevent starving 17 assembly orders.',
+        outcome: 'Steering Assembly inventory replenished at PL-01 Hyderabad. Projected delay eliminated.',
+        lessonsLearned: 'Dual-modal air+road response preserved ₹24.2L revenue with zero OEM penalty activation.',
+        recoveryScore: 94.0,
+        orchestratorScore: 82.3,
+        recoveryStatus: 'COMPLETED',
+        createdBy: user.fullName || user.email,
+      }).catch((memErr) => {
+        console.warn('Could not auto-insert resilience memory record:', memErr);
+      });
+
+      // Step 4.5 & 8: Create completion notification in SAP HANA Cloud
+      const notificationId = `NOTIF-${Date.now().toString(36).toUpperCase()}`;
+      await createHanaNotification({
+        notificationId,
+        category: 'RECOVERY',
+        notificationType: 'RECOVERY_COMPLETED',
+        title: 'Recovery Completed: EXE-1001',
+        message: `Recovery EXE-1001 for DIS-1001 has been completed successfully via Combined Recovery (STR-001) at ${completionTime}.`,
+        severity: 'INFO',
+        disruptionId: 'DIS-1001',
+        executionId: 'EXE-1001',
+      }).catch((notifErr) => {
+        console.warn('Could not auto-insert completion notification:', notifErr);
+      });
+
       return NextResponse.json(
         {
           success: true,
           executionId: result.executionId,
           previousStatus: result.previousStatus,
           newStatus: result.newStatus,
+          completionTime,
+          memoryId,
+          notificationId,
         },
         { status: 200 }
       );
     }
 
-    // Affected rows === 0: Concurrency conflict (or already completed)
+    // Concurrency conflict / already completed
     return NextResponse.json(
       {
         success: false,
-        error: 'Execution state changed before this action completed',
+        error: 'Execution state changed before this action completed (0 rows updated)',
       },
       { status: 409 }
     );
@@ -203,4 +211,3 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
-

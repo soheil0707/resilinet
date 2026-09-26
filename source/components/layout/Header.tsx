@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -14,10 +14,14 @@ import {
   Menu,
   AlertOctagon,
   Sparkles,
+  Check,
+  ExternalLink,
+  Shield,
+  Layers,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth/auth-context';
+import { useAuth, UserRole } from '@/lib/auth/auth-context';
 import { useWorkflow } from '@/lib/workflow/workflow-context';
-import { UserRole } from '@/lib/supabase/types';
+import { useNotifications } from '@/lib/hana/notification-context';
 import { Breadcrumbs } from './Breadcrumbs';
 import { LiveDataBadge } from '@/components/enterprise/LiveDataBadge';
 
@@ -28,6 +32,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   LOGISTICS_MANAGER: 'Logistics Manager',
   FINANCE_MANAGER: 'Finance Manager',
   ADMIN: 'System Administrator',
+  ANALYST: 'Supply Chain Analyst',
 };
 
 export interface HeaderProps {
@@ -42,26 +47,30 @@ export function Header({
   const pathname = usePathname();
   const router = useRouter();
   const { profile, activeRole, setActiveRole, signOut, user } = useAuth();
-  const { resetCrisisWorkflow, workflowState, approvedStrategy, selectedStrategy } = useWorkflow();
+  const { resetCrisisWorkflow } = useWorkflow();
+  const { notifications, counts, markAsRead, markAllAsRead } = useNotifications();
 
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [isHanaLive, setIsHanaLive] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState(false);
 
-  // Probe SAP HANA Cloud status once on mount
+  const notifMenuRef = useRef<HTMLDivElement>(null);
+
+  // Probe SAP HANA Cloud status
   useEffect(() => {
     let isMounted = true;
     async function checkHana() {
       try {
-        const res = await fetch('/api/hana/disruptions');
+        const res = await fetch('/api/hana/test');
         if (res.ok) {
           const json = await res.json();
           if (isMounted) setIsHanaLive(Boolean(json?.success));
         } else {
           if (isMounted) setIsHanaLive(false);
         }
-      } catch (err) {
+      } catch {
         if (isMounted) setIsHanaLive(false);
       }
     }
@@ -78,8 +87,6 @@ export function Header({
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
-    router.refresh();
   };
 
   const handleResetDemo = () => {
@@ -92,7 +99,6 @@ export function Header({
     }, 2000);
   };
 
-  // Derive screen title based on route
   const getScreenTitle = () => {
     switch (pathname) {
       case '/':
@@ -128,6 +134,29 @@ export function Header({
     }
   };
 
+  const handleNotificationClick = async (notif: (typeof notifications)[0]) => {
+    if (!notif.IS_READ) {
+      await markAsRead(notif.NOTIFICATION_ID);
+    }
+    setShowNotificationMenu(false);
+
+    // Navigate to target route based on category / disruption
+    const cat = (notif.CATEGORY || '').toUpperCase();
+    if (cat === 'EARLY_WARNING') {
+      router.push('/early-warning');
+    } else if (cat === 'CRISIS') {
+      router.push('/disruptions');
+    } else if (cat === 'DECISION') {
+      router.push('/recovery-strategies');
+    } else if (cat === 'APPROVAL') {
+      router.push('/approval-center');
+    } else if (cat === 'EXECUTION' || cat === 'RECOVERY') {
+      router.push('/recovery-execution');
+    } else {
+      router.push('/');
+    }
+  };
+
   return (
     <header
       role="banner"
@@ -135,7 +164,6 @@ export function Header({
     >
       {/* ── Left: Mobile Hamburger & Breadcrumb Navigation ────────── */}
       <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-        {/* Mobile menu trigger */}
         <button
           onClick={onMobileMenuClick}
           className="md:hidden p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden"
@@ -145,7 +173,6 @@ export function Header({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Breadcrumb + Title area */}
         <div className="min-w-0">
           <Breadcrumbs />
           <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight truncate hidden sm:block">
@@ -204,12 +231,12 @@ export function Header({
             onClick={() => setShowRoleMenu(!showRoleMenu)}
             aria-expanded={showRoleMenu}
             aria-haspopup="true"
-            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 transition focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden"
-            title="Switch Persona / Role for Demo"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 transition focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden cursor-pointer"
+            title="Switch Persona / Role"
           >
             <UserCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
             <span className="font-semibold hidden sm:inline max-w-[120px] truncate">
-              {ROLE_LABELS[activeRole]}
+              {ROLE_LABELS[activeRole] || activeRole}
             </span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
@@ -249,15 +276,118 @@ export function Header({
           )}
         </div>
 
-        {/* Notifications Icon Button */}
-        <button
-          className="relative p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden"
-          title="Crisis Notifications"
-          aria-label="View crisis notifications"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white" />
-        </button>
+        {/* Notifications Icon Button & Interactive Panel */}
+        <div className="relative" ref={notifMenuRef}>
+          <button
+            onClick={() => setShowNotificationMenu(!showNotificationMenu)}
+            className="relative p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden cursor-pointer"
+            title="HANA Crisis Notifications"
+            aria-label="View crisis notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {counts.totalUnread > 0 && (
+              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold font-mono text-white bg-rose-600 rounded-full ring-2 ring-white">
+                {counts.totalUnread}
+              </span>
+            )}
+          </button>
+
+          {showNotificationMenu && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowNotificationMenu(false)}
+              />
+              <div
+                role="dialog"
+                aria-label="HANA Notifications"
+                className="absolute right-0 mt-1.5 w-80 sm:w-96 bg-white border border-slate-200 rounded-xl shadow-2xl py-2 z-50 text-xs transition duration-150 max-h-[85vh] flex flex-col"
+              >
+                <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                      HANA Notifications
+                    </span>
+                    {counts.totalUnread > 0 ? (
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        {counts.totalUnread} unread
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">All clear</span>
+                    )}
+                  </div>
+                  {counts.totalUnread > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-[11px] text-sky-600 hover:text-sky-800 font-semibold cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                <div className="overflow-y-auto divide-y divide-slate-100 flex-1 max-h-[380px]">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs">
+                      No notifications recorded in SAP HANA Cloud.
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.NOTIFICATION_ID}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`p-3.5 hover:bg-slate-50 transition cursor-pointer flex flex-col gap-1 ${
+                          !n.IS_READ ? 'bg-sky-50/40' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                                n.SEVERITY === 'CRITICAL'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : n.SEVERITY === 'HIGH'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {n.SEVERITY}
+                            </span>
+                            <span className="text-[9px] font-mono font-bold text-slate-500">
+                              {n.CATEGORY}
+                            </span>
+                          </div>
+                          {!n.IS_READ && (
+                            <span className="w-2 h-2 rounded-full bg-sky-600 shrink-0" />
+                          )}
+                        </div>
+                        <p className="font-bold text-slate-900 text-xs leading-snug">
+                          {n.TITLE}
+                        </p>
+                        {n.MESSAGE && (
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            {n.MESSAGE}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                          <span className="font-mono">
+                            {n.DISRUPTION_ID ? `Incident: ${n.DISRUPTION_ID}` : ''}
+                          </span>
+                          <span>
+                            {new Date(n.CREATED_AT).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* User Account Avatar & Sign Out */}
         <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-slate-200">

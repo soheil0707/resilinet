@@ -103,90 +103,26 @@ export interface HanaExecutionItem {
   EXPECTED_COMPLETION?: string | null;
 }
 
+import { useHanaDashboard } from '@/lib/hana/use-dashboard';
+
 export default function ExecutiveDashboardPage() {
-  const [hanaSummary, setHanaSummary] = useState<HanaDashboardSummary | null>(null);
-  const [hanaDisruptions, setHanaDisruptions] = useState<HanaDisruptionItem[]>([]);
-  const [hanaDecision, setHanaDecision] = useState<HanaAIDecisionItem | null>(null);
-  const [hanaExecution, setHanaExecution] = useState<HanaExecutionItem | null>(null);
-  const [hanaActive, setHanaActive] = useState<boolean>(false);
-  const [hanaError, setHanaError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const {
+    summary: hanaSummary,
+    disruptions: hanaDisruptions,
+    primaryDisruption: rawPrimaryIncident,
+    topAIDecision: hanaDecision,
+    currentExecution: hanaExecution,
+    isLoading,
+    isRefreshing,
+    error: hanaError,
+    refresh: handleRefresh,
+  } = useHanaDashboard();
+
+  const hanaActive = Boolean(hanaSummary);
 
   const { workflowState, approvedStrategy, selectedStrategy } = useWorkflow();
   const isRecovered = workflowState === 'RECOVERED';
   const activeStrategy = approvedStrategy || selectedStrategy;
-
-  const loadData = async () => {
-    setIsLoading(true);
-    setHanaError(null);
-    try {
-      const [dashRes, disrupRes, decisionRes, execRes] = await Promise.all([
-        fetch('/api/hana/dashboard'),
-        fetch('/api/hana/disruptions'),
-        fetch('/api/hana/ai-decisions?disruptionId=DIS-1001'),
-        fetch('/api/hana/recovery-execution'),
-      ]);
-
-      let hasHana = false;
-
-      if (dashRes.ok) {
-        const dashJson = await dashRes.json();
-        if (dashJson.success && dashJson.summary) {
-          setHanaSummary(dashJson.summary);
-          hasHana = true;
-        }
-      }
-
-      if (disrupRes.ok) {
-        const disrupJson = await disrupRes.json();
-        if (disrupJson.success && Array.isArray(disrupJson.data)) {
-          setHanaDisruptions(disrupJson.data);
-          hasHana = true;
-        }
-      }
-
-      if (decisionRes.ok) {
-        const decisionJson = await decisionRes.json();
-        if (decisionJson.success && Array.isArray(decisionJson.data) && decisionJson.data.length > 0) {
-          setHanaDecision(decisionJson.data[0]);
-          hasHana = true;
-        }
-      }
-
-      if (execRes.ok) {
-        const execJson = await execRes.json();
-        if (execJson.success && Array.isArray(execJson.data) && execJson.data.length > 0) {
-          const primaryExec =
-            execJson.data.find((e: HanaExecutionItem) => e.DISRUPTION_ID === 'DIS-1001') ||
-            execJson.data[0];
-          setHanaExecution(primaryExec);
-          hasHana = true;
-        }
-      }
-
-      if (!hasHana) {
-        setHanaError('SAP HANA Cloud operational service unavailable');
-      }
-      setHanaActive(hasHana);
-    } catch (hanaErr) {
-      console.error('SAP HANA APIs unavailable:', hanaErr);
-      setHanaActive(false);
-      setHanaError('SAP HANA Cloud operational service unavailable');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadData();
-  };
 
   // Derive display values from live SAP HANA
   const liveActiveDisruptions = hanaSummary ? hanaSummary.activeDisruptions : 0;
@@ -202,7 +138,7 @@ export default function ExecutiveDashboardPage() {
     : 0;
 
   // Primary Incident values (DIS-1001) from HANA
-  const primaryIncident = hanaDisruptions.find((d) => d.DISRUPTION_ID === 'DIS-1001') || hanaDisruptions[0] || {
+  const primaryIncident = rawPrimaryIncident || hanaDisruptions.find((d) => d.DISRUPTION_ID === 'DIS-1001') || hanaDisruptions[0] || {
     DISRUPTION_ID: 'DIS-1001',
     DISRUPTION_TYPE: hanaActive ? 'Operational Normal' : 'Not available from SAP HANA',
     SEVERITY: hanaActive ? 'LOW' : 'UNKNOWN',

@@ -320,10 +320,15 @@ function RecoveryExecutionContent() {
 
       if (res.status === 200 && data.success) {
         setWriteBackSuccess('Execution record EXE-1001 status updated to COMPLETED in SAP HANA Cloud.');
-        // Refresh live HANA execution records to get authoritative ACTUAL_COMPLETION timestamp
+        // 1. Refresh live HANA execution records
         await fetchExecutions();
-        // Update local workflow state only after confirmed HANA success
+        // 2. Update local workflow state only after confirmed HANA success
         setWorkflowState('RECOVERED');
+        // 3. Invalidate/revalidate dashboard and notifications across the platform
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('resilinet:dashboard-refresh'));
+          window.dispatchEvent(new CustomEvent('resilinet:notifications-refresh'));
+        }
       } else if (res.status === 401) {
         setWriteBackError('Authentication required.');
       } else if (res.status === 403) {

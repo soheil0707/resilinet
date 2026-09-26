@@ -1,22 +1,53 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { createClient, isSupabaseConfigured } from '../supabase/client';
-import { Profile, UserRole } from '../supabase/types';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+
+export type UserRole =
+  | 'SUPPLY_CHAIN_MANAGER'
+  | 'ADMIN'
+  | 'ANALYST'
+  | 'PROCUREMENT_MANAGER'
+  | 'PRODUCTION_PLANNER'
+  | 'LOGISTICS_MANAGER'
+  | 'FINANCE_MANAGER';
 
 export const SUPPORTED_ROLES: UserRole[] = [
   'SUPPLY_CHAIN_MANAGER',
+  'ADMIN',
+  'ANALYST',
   'PROCUREMENT_MANAGER',
   'PRODUCTION_PLANNER',
   'LOGISTICS_MANAGER',
   'FINANCE_MANAGER',
-  'ADMIN',
 ];
 
+export interface AuthProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: UserRole;
+  phone_number?: string | null;
+  department?: string;
+  company?: string;
+  updated_at?: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  user_metadata?: {
+    full_name?: string;
+    role?: UserRole;
+    phone_number?: string | null;
+    department?: string;
+    company?: string;
+  };
+}
+
 interface AuthContextType {
-  user: User | null;
-  profile: Profile | null;
+  user: AuthUser | null;
+  profile: AuthProfile | null;
   isLoading: boolean;
   isConfigured: boolean;
   activeRole: UserRole;
@@ -28,202 +59,161 @@ interface AuthContextType {
     profileData: {
       fullName: string;
       role: UserRole;
-      department: string;
-      company: string;
+      phoneNumber?: string;
+      department?: string;
+      company?: string;
     }
   ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   isLoading: true,
-  isConfigured: false,
+  isConfigured: true,
   activeRole: 'SUPPLY_CHAIN_MANAGER',
   setActiveRole: () => {},
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: async () => {},
+  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const isConfigured = isSupabaseConfigured();
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(isConfigured);
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeRole, setActiveRole] = useState<UserRole>('SUPPLY_CHAIN_MANAGER');
 
-  const fetchProfileAndValidate = async (
-    userId: string,
-    userMetadata?: Record<string, unknown>
-  ): Promise<Profile | null> => {
-    const supabase = createClient();
-    if (!supabase) return null;
-
+  const checkSession = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          const u = data.user;
+          const mappedRole = (SUPPORTED_ROLES.includes(u.role as UserRole)
+            ? (u.role as UserRole)
+            : 'SUPPLY_CHAIN_MANAGER');
 
-      if (data && !error) {
-        const loadedProfile = data as Profile;
-        if (SUPPORTED_ROLES.includes(loadedProfile.role)) {
-          setProfile(loadedProfile);
-          setActiveRole(loadedProfile.role);
-          return loadedProfile;
-        } else {
-          console.warn('Profile has unsupported role:', loadedProfile.role);
-          await supabase.auth.signOut();
-          setUser(null);
-          setProfile(null);
-          return null;
+          const userObj: AuthUser = {
+            id: u.userId,
+            email: u.email,
+            user_metadata: {
+              full_name: u.fullName,
+              role: mappedRole,
+              phone_number: u.phoneNumber,
+              department: 'Global Supply Chain & Logistics',
+              company: 'Astra Motors Manufacturing',
+            },
+          };
+
+          const profileObj: AuthProfile = {
+            id: u.userId,
+            full_name: u.fullName,
+            email: u.email,
+            role: mappedRole,
+            phone_number: u.phoneNumber,
+            department: 'Global Supply Chain & Logistics',
+            company: 'Astra Motors Manufacturing',
+            updated_at: new Date().toISOString(),
+          };
+
+          setUser(userObj);
+          setProfile(profileObj);
+          setActiveRole(mappedRole);
+          return;
         }
       }
-
-      // If profile is not in the profiles table, check user_metadata
-      const metaRole = userMetadata?.role as UserRole | undefined;
-      if (metaRole && SUPPORTED_ROLES.includes(metaRole)) {
-        const autoProfile: Profile = {
-          id: userId,
-          full_name: (userMetadata?.full_name as string) || 'Enterprise User',
-          role: metaRole,
-          department: (userMetadata?.department as string) || 'Global Supply Chain & Logistics',
-          company: (userMetadata?.company as string) || 'Astra Motors Manufacturing',
-          updated_at: new Date().toISOString(),
-        };
-
-        try {
-          await supabase.from('profiles').upsert(autoProfile);
-        } catch (upsertErr) {
-          console.warn('Could not persist auto-profile:', upsertErr);
-        }
-
-        setProfile(autoProfile);
-        setActiveRole(metaRole);
-        return autoProfile;
-      }
+      setUser(null);
+      setProfile(null);
     } catch (err) {
-      console.warn('Error validating user profile:', err);
+      console.warn('Session verification caught error:', err);
+      setUser(null);
+      setProfile(null);
+    } finally {
+      setIsLoading(false);
     }
-    return null;
-  };
+  }, []);
 
   useEffect(() => {
-    if (!isConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
-    const supabase = createClient();
-    if (!supabase) {
-      setIsLoading(false);
-      return;
-    }
-
-    // Safety timeout: guarantees isLoading never hangs indefinitely on network delay
-    const safetyTimer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2500);
-
-    // Check active session
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        if (session?.user) {
-          setUser(session.user);
-          await fetchProfileAndValidate(session.user.id, session.user.user_metadata);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      })
-      .catch((err) => {
-        console.warn('Session verification caught error:', err);
-        setUser(null);
-        setProfile(null);
-      })
-      .finally(() => {
-        clearTimeout(safetyTimer);
-        setIsLoading(false);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfileAndValidate(session.user.id, session.user.user_metadata);
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-      setIsLoading(false);
-    });
-
-    return () => {
-      clearTimeout(safetyTimer);
-      subscription.unsubscribe();
-    };
-  }, [isConfigured]);
+    checkSession();
+  }, [checkSession]);
 
   const signIn = async (email: string, password: string) => {
     if (!email || !password) {
-      return { error: new Error('Please enter both email and password.') };
+      return { error: new Error('Please enter both corporate email and password.') };
     }
 
-    if (!isConfigured) {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        return {
+          error: new Error(data.error || 'Authentication failed. Please verify your credentials.'),
+        };
+      }
+
+      const u = data.user;
+      const mappedRole = (SUPPORTED_ROLES.includes(u.role as UserRole)
+        ? (u.role as UserRole)
+        : 'SUPPLY_CHAIN_MANAGER');
+
+      const userObj: AuthUser = {
+        id: u.userId,
+        email: u.email,
+        user_metadata: {
+          full_name: u.fullName,
+          role: mappedRole,
+          phone_number: u.phoneNumber,
+          department: 'Global Supply Chain & Logistics',
+          company: 'Astra Motors Manufacturing',
+        },
+      };
+
+      const profileObj: AuthProfile = {
+        id: u.userId,
+        full_name: u.fullName,
+        email: u.email,
+        role: mappedRole,
+        phone_number: u.phoneNumber,
+        department: 'Global Supply Chain & Logistics',
+        company: 'Astra Motors Manufacturing',
+        updated_at: new Date().toISOString(),
+      };
+
+      setUser(userObj);
+      setProfile(profileObj);
+      setActiveRole(mappedRole);
+
+      // Clean stale navigation/workflow state so user always starts fresh at Executive Dashboard
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('resilinet_last_route');
+        } catch {
+          // ignore
+        }
+      }
+
+      return { error: null };
+    } catch (err) {
       return {
         error: new Error(
-          'Supabase authentication is not configured in .env.local. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable authentication.'
+          err instanceof Error ? err.message : 'Unable to reach SAP HANA Cloud authentication service'
         ),
       };
     }
-
-    const supabase = createClient();
-    if (!supabase) {
-      return { error: new Error('Supabase client unavailable') };
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) {
-      return {
-        error: new Error(
-          error.message || 'Invalid email or password. Please verify your credentials.'
-        ),
-      };
-    }
-
-    if (!data.user) {
-      return { error: new Error('Authentication succeeded but user record was not returned.') };
-    }
-
-    setUser(data.user);
-
-    // Retrieve profile and validate role
-    const profileRecord = await fetchProfileAndValidate(
-      data.user.id,
-      data.user.user_metadata
-    );
-
-    if (!profileRecord) {
-      await supabase.auth.signOut();
-      setUser(null);
-      setProfile(null);
-      return {
-        error: new Error(
-          'Access Denied: No authorized ResiliNet enterprise role found for this account.'
-        ),
-      };
-    }
-
-    return { error: null };
   };
 
   const signUp = async (
@@ -232,85 +222,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileData: {
       fullName: string;
       role: UserRole;
-      department: string;
-      company: string;
+      phoneNumber?: string;
+      department?: string;
+      company?: string;
     }
   ) => {
-    if (!SUPPORTED_ROLES.includes(profileData.role)) {
-      return {
-        error: new Error(
-          `Invalid role. Supported roles are: ${SUPPORTED_ROLES.join(', ')}`
-        ),
-      };
-    }
-
-    if (!isConfigured) {
-      return {
-        error: new Error(
-          'Supabase credentials are not configured in .env.local. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
-        ),
-      };
-    }
-
-    const supabase = createClient();
-    if (!supabase) {
-      return { error: new Error('Supabase client unavailable') };
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          full_name: profileData.fullName,
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: profileData.fullName,
+          email: email.trim(),
+          phoneNumber: profileData.phoneNumber,
+          password,
           role: profileData.role,
-          department: profileData.department,
-          company: profileData.company,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        return {
+          error: new Error(data.error || 'Registration failed in SAP HANA Cloud'),
+        };
+      }
+
+      const u = data.user;
+      const mappedRole = (SUPPORTED_ROLES.includes(u.role as UserRole)
+        ? (u.role as UserRole)
+        : 'SUPPLY_CHAIN_MANAGER');
+
+      const userObj: AuthUser = {
+        id: u.userId,
+        email: u.email,
+        user_metadata: {
+          full_name: u.fullName,
+          role: mappedRole,
+          phone_number: u.phoneNumber,
+          department: profileData.department || 'Global Supply Chain & Logistics',
+          company: profileData.company || 'Astra Motors Manufacturing',
         },
-      },
-    });
+      };
 
-    if (error) return { error };
-
-    if (data.user) {
-      const newProfile: Profile = {
-        id: data.user.id,
-        full_name: profileData.fullName,
-        role: profileData.role,
-        department: profileData.department,
-        company: profileData.company,
+      const profileObj: AuthProfile = {
+        id: u.userId,
+        full_name: u.fullName,
+        email: u.email,
+        role: mappedRole,
+        phone_number: u.phoneNumber,
+        department: profileData.department || 'Global Supply Chain & Logistics',
+        company: profileData.company || 'Astra Motors Manufacturing',
         updated_at: new Date().toISOString(),
       };
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(newProfile);
+      setUser(userObj);
+      setProfile(profileObj);
+      setActiveRole(mappedRole);
 
-      if (profileError) {
-        console.error('Error writing profile to database:', profileError);
-      }
-
-      setUser(data.user);
-      setProfile(newProfile);
-      setActiveRole(profileData.role);
+      return { error: null };
+    } catch (err) {
+      return {
+        error: new Error(
+          err instanceof Error ? err.message : 'Failed to register account in SAP HANA Cloud'
+        ),
+      };
     }
-
-    return { error: null };
   };
 
   const signOut = async () => {
-    if (isConfigured) {
-      const supabase = createClient();
-      if (supabase) {
-        try {
-          await supabase.auth.signOut();
-        } catch (err) {
-          console.warn('Error signing out from Supabase:', err);
-        }
-      }
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.warn('Logout error:', err);
     }
     setUser(null);
     setProfile(null);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('resilinet_last_route');
+      } catch {
+        // ignore
+      }
+    }
+    router.push('/login');
+    router.refresh();
   };
 
   return (
@@ -319,12 +315,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         profile,
         isLoading,
-        isConfigured,
+        isConfigured: true,
         activeRole,
         setActiveRole,
         signIn,
         signUp,
         signOut,
+        refreshUser: checkSession,
       }}
     >
       {children}

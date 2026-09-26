@@ -18,12 +18,13 @@ import {
   Layers,
   Users2,
   Loader2,
+  Database,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, isConfigured } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -51,8 +52,20 @@ export default function LoginPage() {
         setError(signInError.message);
         setLoading(false);
       } else {
-        router.push('/');
-        router.refresh();
+        // Enforce Phase 34 requirement:
+        // Do not allow previous URL or localStorage to dictate the first screen.
+        // Every fresh login MUST start at / (Executive Dashboard).
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('resilinet_last_route');
+            localStorage.removeItem('resilinet_workflow_state');
+          } catch {
+            // ignore
+          }
+          window.location.href = '/';
+        } else {
+          router.push('/');
+        }
       }
     } catch (err: unknown) {
       const message =
@@ -78,9 +91,14 @@ export default function LoginPage() {
             priority
           />
         </div>
-        <p className="text-xs text-slate-500 font-medium tracking-wide">
-          Astra Motors Manufacturing • Enterprise Crisis Orchestration Platform
-        </p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-xs text-slate-500 font-medium tracking-wide">
+            Astra Motors Manufacturing • Enterprise Crisis Orchestration Platform
+          </p>
+          <span className="font-mono text-[10px] font-bold text-sky-800 bg-sky-100 border border-sky-200 px-1.5 py-0.2 rounded">
+            HANA SINGLE SOURCE
+          </span>
+        </div>
       </div>
 
       {/* Main Container */}
@@ -91,8 +109,9 @@ export default function LoginPage() {
           <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-4">
             <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
               <span>Supply Chain Orchestration Flow</span>
-              <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold">
-                Autonomous Sync
+              <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold flex items-center gap-1">
+                <Database className="w-3 h-3" />
+                SAP HANA Cloud
               </span>
             </div>
 
@@ -158,19 +177,6 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-
-          {/* Configuration Warning (if Supabase env keys missing) */}
-          {!isConfigured && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold">Supabase Authentication Setup Required</p>
-                <p className="text-amber-800 leading-relaxed text-[11px]">
-                  Configure <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[11px]">source/.env.local</code> to enable live authentication.
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Validation Error Alert */}
           {error && (
@@ -259,7 +265,7 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-sky-400" />
-                  <span>Authenticating with Supabase...</span>
+                  <span>Authenticating against SAP HANA Cloud...</span>
                 </>
               ) : (
                 <>
@@ -274,7 +280,7 @@ export default function LoginPage() {
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <span>New Astra Motors personnel?</span>
             <Link
-              href="/signup"
+              href="/register"
               className="text-sky-600 hover:text-sky-800 font-semibold transition"
             >
               Register Corporate Account →
@@ -284,7 +290,7 @@ export default function LoginPage() {
 
         {/* Security / Enterprise Notice */}
         <p className="mt-4 text-center text-[11px] text-slate-400">
-          Authorized personnel only. Protected under Astra Motors IT Security Policy & Supabase RLS.
+          Authorized personnel only. Authenticated against SAP HANA Cloud Enterprise Schema HACKFEST0145.
         </p>
       </div>
 

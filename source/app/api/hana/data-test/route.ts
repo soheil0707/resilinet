@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/auth/session';
 import {
   getDisruptions,
   getRecommendations,
@@ -8,29 +8,19 @@ import {
 } from '@/lib/hana/repository';
 import { sanitizeHanaError } from '@/lib/hana/client';
 
-// Explicitly use Node.js runtime for native SAP HANA driver
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    // 1. Verify authenticated Supabase session
-    const supabase = await createServerSupabaseClient();
-    if (supabase) {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        return NextResponse.json(
-          { error: 'Unauthorized: Valid Supabase session required' },
-          { status: 401 }
-        );
-      }
+    const user = await getSessionUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Active HANA session required' },
+        { status: 401 }
+      );
     }
 
-    // 2. Query SAP HANA Cloud via the dedicated read-only repository
     const [disruptions, recommendations, aiDecisions, recoveryExecutions] = await Promise.all([
       getDisruptions(),
       getRecommendations(),
@@ -40,7 +30,6 @@ export async function GET() {
 
     const schema = process.env.HANA_SCHEMA || 'HACKFEST0145';
 
-    // 3. Return safe summary JSON response without sensitive details
     return NextResponse.json({
       success: true,
       schema,

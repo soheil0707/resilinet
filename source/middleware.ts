@@ -1,110 +1,78 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
+
+const SESSION_COOKIE_NAME = 'resilinet_session';
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.SESSION_SECRET || 'resilinet-hana-first-enterprise-secret-key-2026-secure'
+);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Static assets and internals bypass
+  // 1. Static assets and internal paths bypass
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon.ico') ||
-    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)
+    pathname.startsWith('/resilinet-logo.png') ||
+    pathname.startsWith('/sw.js') ||
+    pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf)$/)
   ) {
     return NextResponse.next();
   }
 
-  const isAuthRoute = pathname === '/login' || pathname === '/signup';
+  // 2. Auth routes and public auth API endpoints bypass
+  const isAuthPage =
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/signup';
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  const isPublicApi =
+    pathname.startsWith('/api/auth/login') ||
+    pathname.startsWith('/api/auth/register') ||
+    pathname.startsWith('/api/auth/logout');
 
-  const isConfigured = Boolean(
-    url &&
-    anonKey &&
-    (url.startsWith('https://') || url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) &&
-    !url.includes('your-project.supabase.co') &&
-    anonKey.length > 10
-  );
-
-  // If Supabase is not configured, unauthenticated access to protected routes is blocked
-  if (!isConfigured) {
-    if (!isAuthRoute) {
-      if (pathname.startsWith('/api')) {
-        return NextResponse.json(
-          { error: 'Unauthorized: Authentication service unconfigured' },
-          { status: 401 }
-        );
-      }
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
+  if (isPublicApi) {
     return NextResponse.next();
   }
 
-  // Create mutable response to sync updated auth session cookies
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+  // 3. Verify HANA session cookie
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  let isAuthenticated = false;
 
-  try {
-    const supabase = createServerClient(url!, anonKey!, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
-      },
-    });
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    // 1. Unauthenticated users cannot access protected routes
-    if (!user && !isAuthRoute) {
-      if (pathname.startsWith('/api')) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (sessionCookie) {
+    try {
+      const { payload } = await jwtVerify(sessionCookie, JWT_SECRET);
+      if (payload && payload.userId && payload.email) {
+        isAuthenticated = true;
       }
-      return NextResponse.redirect(new URL('/login', request.url));
+    } catch {
+      isAuthenticated = false;
     }
-
-    // 2. Authenticated users visiting /login or /signup are redirected to dashboard
-    if (user && isAuthRoute) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    return response;
-  } catch (error) {
-    console.error('Middleware authentication error:', error);
-    if (!isAuthRoute) {
-      if (pathname.startsWith('/api')) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-    return response;
   }
+
+  // 4. If authenticated and accessing auth pages (/login, /register, /signup), redirect to Executive Dashboard
+  if (isAuthenticated && isAuthPage) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // 5. If unauthenticated and accessing protected routes
+  if (!isAuthenticated && !isAuthPage) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Active HANA session required' },
+        { status: 401 }
+      );
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - static files with extensions (.svg, .png, etc.)
+     * Match all request paths except static files and icons
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
