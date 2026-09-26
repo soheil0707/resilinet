@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { EnterpriseShell } from '@/components/layout/EnterpriseShell';
@@ -98,20 +98,30 @@ export default function EarlyWarningPage() {
   const [dismissed, setDismissed] = useState(false);
   const [mitigationInitiated, setMitigationInitiated] = useState(false);
 
-  const loadHanaData = async () => {
+  const isMountedRef = React.useRef(true);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  const loadHanaData = useCallback(async () => {
     setIsLoading(true);
     setHanaError(null);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const [disrupRes, stratRes] = await Promise.all([
-        fetch('/api/hana/disruptions'),
-        fetch('/api/hana/recovery-strategies'),
+        fetch('/api/hana/disruptions', { signal: controller.signal }),
+        fetch('/api/hana/recovery-strategies', { signal: controller.signal }),
       ]);
 
       let active = false;
 
       if (disrupRes.ok) {
         const disrupJson = await disrupRes.json();
-        if (disrupJson.success && Array.isArray(disrupJson.data)) {
+        if (isMountedRef.current && disrupJson.success && Array.isArray(disrupJson.data)) {
           setDisruptions(disrupJson.data);
           active = true;
           if (Array.isArray(disrupJson.context) && disrupJson.context.length > 0) {
@@ -123,28 +133,45 @@ export default function EarlyWarningPage() {
 
       if (stratRes.ok) {
         const stratJson = await stratRes.json();
-        if (stratJson.success && Array.isArray(stratJson.strategies)) {
+        if (isMountedRef.current && stratJson.success && Array.isArray(stratJson.strategies)) {
           setStrategies(stratJson.strategies);
           active = true;
         }
       }
+
+      if (!isMountedRef.current) return;
 
       if (!active) {
         setHanaError('SAP HANA Cloud operational service unavailable');
       }
       setHanaActive(active);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to load HANA data in Early Warning:', err);
-      setHanaActive(false);
-      setHanaError('SAP HANA Cloud operational service unavailable');
+      if (isMountedRef.current) {
+        setHanaActive(false);
+        setHanaError('SAP HANA Cloud operational service unavailable');
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadHanaData();
-  }, []);
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadHanaData]);
 
   // Primary disruption (DIS-1001)
   const primaryDisruption = useMemo(() => {

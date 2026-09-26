@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       source: 'sap-hana',
       schema,
       strategyRanking,
+      strategies: strategyRanking,
       recommendations,
       aiDecisions,
     });

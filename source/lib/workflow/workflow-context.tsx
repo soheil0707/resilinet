@@ -363,7 +363,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     };
   }, [workflowState, selectedStrategy, approvedStrategy, isOverride, executionSteps, resilienceRecords]);
 
-  // Rehydrate from localStorage on mount
+  // Rehydrate from localStorage on mount (non-authoritative cache)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -388,6 +388,48 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore parse errors
     }
+  }, []);
+
+  // Synchronize authoritative workflow lifecycle state from live SAP HANA ORCH_RECOVERY_EXECUTION
+  useEffect(() => {
+    let isCancelled = false;
+    const controller = new AbortController();
+
+    async function syncHanaExecutionState() {
+      try {
+        const res = await fetch('/api/hana/recovery-execution?disruptionId=DIS-1001', {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (isCancelled || !json.success || !Array.isArray(json.data) || json.data.length === 0) return;
+
+        // Find canonical EXE-1001 or latest execution record
+        const exe1001 = json.data.find((e: any) => e.EXECUTION_ID === 'EXE-1001') || json.data[0];
+        if (!exe1001) return;
+
+        const status = (exe1001.EXECUTION_STATUS || '').toUpperCase();
+        if (status === 'IN_PROGRESS') {
+          setWorkflowStateInternal('EXECUTING');
+          const current = stateRef.current;
+          persist('EXECUTING', current.selectedStrategy, current.approvedStrategy, current.isOverride, current.executionSteps, current.resilienceRecords);
+        } else if (status === 'COMPLETED') {
+          setWorkflowStateInternal('RECOVERED');
+          const current = stateRef.current;
+          persist('RECOVERED', current.selectedStrategy, current.approvedStrategy, current.isOverride, current.executionSteps, current.resilienceRecords);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // Non-fatal: if unauthenticated or network error, fallback/localStorage continues
+      }
+    }
+
+    syncHanaExecutionState();
+
+    return () => {
+      isCancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const persist = useCallback(

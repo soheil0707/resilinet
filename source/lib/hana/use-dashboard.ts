@@ -66,14 +66,31 @@ export function useHanaDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const isFetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchDashboard = useCallback(async (isBackground = false) => {
+    // Prevent duplicate concurrent fetches
+    if (isFetchingRef.current) {
+      return;
+    }
+    isFetchingRef.current = true;
+
     if (!isBackground) {
       setIsRefreshing(true);
     }
+
+    // Cancel any previous inflight controller if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch('/api/hana/dashboard', {
         headers: { 'Cache-Control': 'no-cache' },
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -98,11 +115,16 @@ export function useHanaDashboard() {
         setError(null);
       }
     } catch (err: unknown) {
+      // Ignore normal abort cancellations
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       if (mountedRef.current) {
         const msg = err instanceof Error ? err.message : 'Failed to load HANA dashboard data';
         setError(msg);
       }
     } finally {
+      isFetchingRef.current = false;
       if (mountedRef.current) {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -114,27 +136,27 @@ export function useHanaDashboard() {
     mountedRef.current = true;
     fetchDashboard();
 
-    // Sensible polling interval: 30 seconds
+    // 30-second polling while document is visible
     const interval = setInterval(() => {
-      // Pause polling if document is hidden to conserve bandwidth and prevent hammering HANA
       if (typeof document !== 'undefined' && !document.hidden) {
         fetchDashboard(true);
       }
     }, 30000);
 
-    // Event-driven revalidation triggers
+    // Event-driven revalidation triggers (e.g. after write-back)
     const handleRevalidate = () => {
       fetchDashboard(true);
     };
 
     window.addEventListener('resilinet:dashboard-refresh', handleRevalidate);
-    window.addEventListener('focus', handleRevalidate);
 
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
       window.removeEventListener('resilinet:dashboard-refresh', handleRevalidate);
-      window.removeEventListener('focus', handleRevalidate);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [fetchDashboard]);
 

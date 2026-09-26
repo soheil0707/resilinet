@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -50,14 +50,26 @@ function DisruptionsContent() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { workflowState } = useWorkflow();
+  const isMountedRef = React.useRef(true);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
-  const loadDisruptions = async () => {
+  const loadDisruptions = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const res = await fetch('/api/hana/disruptions');
+      const res = await fetch('/api/hana/disruptions', {
+        signal: controller.signal,
+      });
       if (!res.ok) {
         throw new Error(`Server returned HTTP ${res.status}`);
       }
       const result = await res.json();
+
+      if (!isMountedRef.current) return;
 
       if (result.success && Array.isArray(result.data) && result.data.length > 0) {
         setHanaDisruptions(result.data);
@@ -66,18 +78,33 @@ function DisruptionsContent() {
       }
       throw new Error(result.error || 'Empty or invalid response from SAP HANA API');
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       console.warn('SAP HANA API unavailable, engaging local fallback:', message);
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setDataSource('fallback');
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadDisruptions();
-  }, []);
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadDisruptions]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

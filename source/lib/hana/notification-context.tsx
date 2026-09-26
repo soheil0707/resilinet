@@ -35,10 +35,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [counts, setCounts] = useState<HanaNotificationCounts>(defaultCounts);
   const [isLoading, setIsLoading] = useState(true);
 
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
   const fetchNotifications = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch('/api/hana/notifications?limit=25', {
         headers: { 'Cache-Control': 'no-cache' },
+        signal: controller.signal,
       });
       if (res.ok) {
         const json = await res.json();
@@ -50,6 +59,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.warn('Failed to fetch notifications from SAP HANA Cloud:', err);
     } finally {
       setIsLoading(false);
@@ -59,8 +71,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     fetchNotifications();
 
-    // Lightweight polling every 45 seconds to keep unread badges synced without hammering HANA
-    const interval = setInterval(fetchNotifications, 45000);
+    // Lightweight polling every 90 seconds while document is visible to keep unread badges synced without hammering HANA
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNotifications();
+      }
+    }, 90000);
 
     // Revalidate on custom window event
     const handleRevalidate = () => {
@@ -71,6 +87,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => {
       clearInterval(interval);
       window.removeEventListener('resilinet:notifications-refresh', handleRevalidate);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [fetchNotifications]);
 

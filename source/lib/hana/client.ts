@@ -65,9 +65,12 @@ export function sanitizeHanaError(error: unknown): string {
     .replace(/(uid|user)\s*=\s*[^;,\s]+/gi, '$1=***');
 }
 
+const HANA_OPERATION_TIMEOUT_MS = 8000;
+
 /**
  * Reusable function to execute a query against SAP HANA Cloud with automated connection lifecycle management.
  * Automatically connects, executes, disconnects, and returns rows.
+ * Enforces an 8-second timeout to prevent serverless function hangs.
  */
 export async function executeHanaQuery<T = Record<string, unknown>>(
   sql: string,
@@ -77,19 +80,52 @@ export async function executeHanaQuery<T = Record<string, unknown>>(
   const connection = hana.createConnection();
 
   return new Promise<T[]>((resolve, reject) => {
-    connection.connect(connOptions, (connectErr) => {
-      if (connectErr) {
-        const safeErr = sanitizeHanaError(connectErr.message);
-        return reject(new Error(safeErr));
-      }
+    let isSettled = false;
+    let isDisconnected = false;
 
-      connection.exec(sql, params, (execErr, results) => {
-        // Guarantee connection disconnect to prevent connection leaks
+    const safeDisconnect = () => {
+      if (isDisconnected) return;
+      isDisconnected = true;
+      try {
         connection.disconnect((discErr) => {
           if (discErr) {
             console.warn('Warning during SAP HANA connection disconnect:', sanitizeHanaError(discErr.message));
           }
         });
+      } catch {
+        // Ignore synchronous disconnect errors
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      safeDisconnect();
+      reject(new Error(`SAP HANA query timed out after ${HANA_OPERATION_TIMEOUT_MS}ms`));
+    }, HANA_OPERATION_TIMEOUT_MS);
+
+    connection.connect(connOptions, (connectErr) => {
+      if (isSettled) {
+        safeDisconnect();
+        return;
+      }
+
+      if (connectErr) {
+        clearTimeout(timer);
+        isSettled = true;
+        safeDisconnect();
+        const safeErr = sanitizeHanaError(connectErr.message);
+        return reject(new Error(safeErr));
+      }
+
+      connection.exec(sql, params, (execErr, results) => {
+        clearTimeout(timer);
+        if (isSettled) {
+          safeDisconnect();
+          return;
+        }
+        isSettled = true;
+        safeDisconnect();
 
         if (execErr) {
           const safeErr = sanitizeHanaError(execErr.message);
@@ -105,6 +141,7 @@ export async function executeHanaQuery<T = Record<string, unknown>>(
 /**
  * Reusable function to execute a DML statement (UPDATE, INSERT, DELETE) against SAP HANA Cloud.
  * Safely manages connection lifecycle, sanitizes errors, and returns the exact count of affected rows.
+ * Enforces an 8-second timeout to prevent serverless function hangs.
  */
 export async function executeHanaDml(
   sql: string,
@@ -114,19 +151,52 @@ export async function executeHanaDml(
   const connection = hana.createConnection();
 
   return new Promise<number>((resolve, reject) => {
-    connection.connect(connOptions, (connectErr) => {
-      if (connectErr) {
-        const safeErr = sanitizeHanaError(connectErr.message);
-        return reject(new Error(safeErr));
-      }
+    let isSettled = false;
+    let isDisconnected = false;
 
-      connection.exec(sql, params, (execErr, results) => {
-        // Guarantee connection disconnect to prevent connection leaks
+    const safeDisconnect = () => {
+      if (isDisconnected) return;
+      isDisconnected = true;
+      try {
         connection.disconnect((discErr) => {
           if (discErr) {
             console.warn('Warning during SAP HANA connection disconnect:', sanitizeHanaError(discErr.message));
           }
         });
+      } catch {
+        // Ignore synchronous disconnect errors
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      safeDisconnect();
+      reject(new Error(`SAP HANA statement timed out after ${HANA_OPERATION_TIMEOUT_MS}ms`));
+    }, HANA_OPERATION_TIMEOUT_MS);
+
+    connection.connect(connOptions, (connectErr) => {
+      if (isSettled) {
+        safeDisconnect();
+        return;
+      }
+
+      if (connectErr) {
+        clearTimeout(timer);
+        isSettled = true;
+        safeDisconnect();
+        const safeErr = sanitizeHanaError(connectErr.message);
+        return reject(new Error(safeErr));
+      }
+
+      connection.exec(sql, params, (execErr, results) => {
+        clearTimeout(timer);
+        if (isSettled) {
+          safeDisconnect();
+          return;
+        }
+        isSettled = true;
+        safeDisconnect();
 
         if (execErr) {
           const safeErr = sanitizeHanaError(execErr.message);

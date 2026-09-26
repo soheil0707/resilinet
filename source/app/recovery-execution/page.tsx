@@ -176,32 +176,55 @@ function RecoveryExecutionContent() {
 
   const isMountedRef = useRef<boolean>(true);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
 
   // Fetch live execution records from SAP HANA Cloud ORCH_RECOVERY_EXECUTION
   const fetchExecutions = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const res = await fetch('/api/hana/recovery-execution');
+      const res = await fetch('/api/hana/recovery-execution', {
+        signal: controller.signal,
+      });
       if (res.ok) {
         const json = await res.json();
+        if (!isMountedRef.current) return;
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           setHanaExecutions(json.data);
           setDataSource('hana');
           return;
         }
       }
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setDataSource('fallback');
+      }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.warn('Failed to load HANA recovery executions, using fallback:', err);
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setDataSource('fallback');
+      }
     } finally {
-      setIsLoadingHana(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoadingHana(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 

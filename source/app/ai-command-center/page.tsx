@@ -318,31 +318,40 @@ function CommandCenterContent() {
   const [dataSource, setDataSource] = useState<'sap-hana' | 'fallback'>('sap-hana');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const isMountedRef = React.useRef(true);
+  const timersRef = React.useRef<NodeJS.Timeout[]>([]);
+  const fetchAbortRef = React.useRef<AbortController | null>(null);
 
   // Load live SAP HANA AI Decision & Strategy Rankings data
   const fetchData = useCallback(async () => {
+    if (fetchAbortRef.current) {
+      fetchAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     try {
-      const [decisionRes, strategiesRes] = await Promise.all([
-        fetch(`/api/hana/ai-decisions?disruptionId=${encodeURIComponent(disruptionId)}`),
-        fetch(`/api/hana/recovery-strategies?disruptionId=${encodeURIComponent(disruptionId)}`),
-      ]);
+      const strategiesRes = await fetch(
+        `/api/hana/recovery-strategies?disruptionId=${encodeURIComponent(disruptionId)}`,
+        { signal: controller.signal }
+      );
 
       let decisionData: HanaAIDecision | null = null;
       let strategiesData: HanaStrategyRanking[] | null = null;
 
-      if (decisionRes.ok) {
-        const json = await decisionRes.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          decisionData = json.data[0];
+      if (strategiesRes.ok) {
+        const sJson = await strategiesRes.json();
+        if (sJson.success) {
+          if (Array.isArray(sJson.aiDecisions) && sJson.aiDecisions.length > 0) {
+            decisionData = sJson.aiDecisions[0];
+          }
+          if (Array.isArray(sJson.strategyRanking) && sJson.strategyRanking.length > 0) {
+            strategiesData = sJson.strategyRanking;
+          }
         }
       }
 
-      if (strategiesRes.ok) {
-        const sJson = await strategiesRes.json();
-        if (sJson.success && Array.isArray(sJson.strategyRanking) && sJson.strategyRanking.length > 0) {
-          strategiesData = sJson.strategyRanking;
-        }
-      }
+      if (!isMountedRef.current) return;
 
       if (decisionData) {
         setHanaDecision(decisionData);
@@ -354,16 +363,34 @@ function CommandCenterContent() {
         setDataSource('fallback');
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.warn('SAP HANA AI decisions query fallback:', err);
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setDataSource('fallback');
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, [disruptionId]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchData();
+
+    return () => {
+      isMountedRef.current = false;
+      if (fetchAbortRef.current) {
+        fetchAbortRef.current.abort();
+      }
+      // Clear all active animation timers on unmount
+      timersRef.current.forEach((t) => clearTimeout(t));
+      timersRef.current = [];
+    };
   }, [fetchData]);
 
   const handleRefresh = async () => {
@@ -371,22 +398,30 @@ function CommandCenterContent() {
     await fetchData();
   };
 
-  // Run or re-run multi-agent sequential orchestration analysis
+  // Run or re-run multi-agent sequential orchestration analysis with safe timer management
   const runAnalysis = useCallback(() => {
+    // Clear any previous ongoing timers before starting a new run
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current = [];
+
     setPhase('ANALYZING');
     setRevealedCount(0);
     setWorkflowState('AGENTS_ANALYZING');
 
     AGENTS.forEach((_, idx) => {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        if (!isMountedRef.current) return;
         setRevealedCount(idx + 1);
         if (idx === AGENTS.length - 1) {
-          setTimeout(() => {
+          const completionTimer = setTimeout(() => {
+            if (!isMountedRef.current) return;
             setPhase('COMPLETE');
             setWorkflowState('AGENTS_COMPLETE');
           }, 400);
+          timersRef.current.push(completionTimer);
         }
       }, 350 * (idx + 1));
+      timersRef.current.push(timer);
     });
   }, [setWorkflowState]);
 

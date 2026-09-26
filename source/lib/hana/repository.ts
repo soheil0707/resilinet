@@ -198,14 +198,15 @@ export async function getAIDecisions(disruptionId?: string): Promise<HanaAIDecis
  * 6. Read recovery executions from ORCH_RECOVERY_EXECUTION table.
  */
 export async function getRecoveryExecutions(disruptionId?: string): Promise<HanaRecoveryExecution[]> {
+  const columns = 'EXECUTION_ID, DISRUPTION_ID, STRATEGY_ID, EXECUTION_STATUS, START_TIME, EXPECTED_COMPLETION, ACTUAL_COMPLETION, EXECUTED_BY, NOTES';
   if (disruptionId) {
     return executeHanaQuery<HanaRecoveryExecution>(
-      'SELECT * FROM ORCH_RECOVERY_EXECUTION WHERE DISRUPTION_ID = ? ORDER BY START_TIME DESC',
+      `SELECT ${columns} FROM ORCH_RECOVERY_EXECUTION WHERE DISRUPTION_ID = ? ORDER BY START_TIME DESC`,
       [disruptionId]
     );
   }
   return executeHanaQuery<HanaRecoveryExecution>(
-    'SELECT * FROM ORCH_RECOVERY_EXECUTION ORDER BY START_TIME DESC'
+    `SELECT ${columns} FROM ORCH_RECOVERY_EXECUTION ORDER BY START_TIME DESC`
   );
 }
 
@@ -397,7 +398,8 @@ export async function getActiveEmailVerificationByTokenHash(
   tokenHash: string
 ): Promise<HanaEmailVerification | null> {
   const sql = `
-    SELECT * FROM ORCH_EMAIL_VERIFICATION 
+    SELECT VERIFICATION_ID, USER_ID, TOKEN_HASH, EXPIRES_AT, CREATED_AT, USED_AT
+    FROM ORCH_EMAIL_VERIFICATION 
     WHERE TOKEN_HASH = ? 
       AND USED_AT IS NULL 
       AND EXPIRES_AT > CURRENT_UTCTIMESTAMP
@@ -450,7 +452,8 @@ export async function getLatestVerificationForUser(
   userId: string
 ): Promise<HanaEmailVerification | null> {
   const sql = `
-    SELECT * FROM ORCH_EMAIL_VERIFICATION 
+    SELECT VERIFICATION_ID, USER_ID, TOKEN_HASH, EXPIRES_AT, CREATED_AT, USED_AT
+    FROM ORCH_EMAIL_VERIFICATION 
     WHERE USER_ID = ? 
     ORDER BY CREATED_AT DESC 
     LIMIT 1
@@ -564,6 +567,11 @@ export interface HanaNotificationCounts {
   totalUnread: number;
 }
 
+interface CategoryCountRow {
+  CATEGORY: string | null;
+  CNT: number | string;
+}
+
 export async function getHanaNotifications(options?: {
   userId?: string;
   unreadOnly?: boolean;
@@ -571,7 +579,11 @@ export async function getHanaNotifications(options?: {
 }): Promise<HanaNotification[]> {
   const { userId, unreadOnly = false, limit = 50 } = options || {};
 
-  let sql = 'SELECT * FROM ORCH_NOTIFICATION WHERE 1=1';
+  let sql = `
+    SELECT NOTIFICATION_ID, USER_ID, CATEGORY, TITLE, MESSAGE, SEVERITY, DISRUPTION_ID, EXECUTION_ID, IS_READ, CREATED_AT, READ_AT
+    FROM ORCH_NOTIFICATION
+    WHERE 1=1
+  `;
   const params: (string | number)[] = [];
 
   if (userId) {
@@ -593,26 +605,44 @@ export async function getHanaNotifications(options?: {
 }
 
 export async function getHanaNotificationCounts(userId?: string): Promise<HanaNotificationCounts> {
-  const notifs = await getHanaNotifications({ userId, unreadOnly: true, limit: 100 });
+  let sql = `
+    SELECT CATEGORY, COUNT(*) AS CNT
+    FROM ORCH_NOTIFICATION
+    WHERE IS_READ = 0
+  `;
+  const params: (string | number)[] = [];
+
+  if (userId) {
+    sql += ' AND (USER_ID = ? OR USER_ID IS NULL)';
+    params.push(userId);
+  }
+
+  sql += ' GROUP BY CATEGORY';
+
+  const rows = await executeHanaQuery<CategoryCountRow>(sql, params);
 
   let monitorDetect = 0;
   let analyzeSimulate = 0;
   let decideApprove = 0;
   let executeLearn = 0;
+  let totalUnread = 0;
 
-  for (const n of notifs) {
-    const cat = (n.CATEGORY || '').toUpperCase();
+  for (const r of rows) {
+    const cat = (r.CATEGORY || '').toUpperCase();
+    const count = Number(r.CNT) || 0;
+    totalUnread += count;
+
     if (cat === 'EARLY_WARNING' || cat === 'CRISIS') {
-      monitorDetect++;
+      monitorDetect += count;
     }
     if (cat === 'CRISIS' || cat === 'DECISION') {
-      analyzeSimulate++;
+      analyzeSimulate += count;
     }
     if (cat === 'DECISION' || cat === 'APPROVAL') {
-      decideApprove++;
+      decideApprove += count;
     }
     if (cat === 'EXECUTION' || cat === 'RECOVERY') {
-      executeLearn++;
+      executeLearn += count;
     }
   }
 
@@ -621,7 +651,7 @@ export async function getHanaNotificationCounts(userId?: string): Promise<HanaNo
     analyzeSimulate,
     decideApprove,
     executeLearn,
-    totalUnread: notifs.length,
+    totalUnread,
   };
 }
 

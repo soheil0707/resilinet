@@ -142,18 +142,33 @@ function ResilienceMemoryContent() {
   const activeStrategy = approvedStrategy || selectedStrategy || null;
   const isCandidateOverride = isOverride || (activeStrategy ? activeStrategy.id !== 'STR-001' : false);
 
+  const isMountedRef = React.useRef(true);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
   // Load SAP HANA Cloud resilience memory and live execution state in parallel
   const loadData = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       // 1. Load memory items and execution state from SAP HANA Cloud in parallel
       const [memRes, execRes] = await Promise.all([
-        fetch('/api/hana/resilience-memory', { headers: { 'Cache-Control': 'no-cache' } }),
-        fetch('/api/hana/recovery-execution', { headers: { 'Cache-Control': 'no-cache' } }),
+        fetch('/api/hana/resilience-memory', {
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
+        }),
+        fetch('/api/hana/recovery-execution', {
+          headers: { 'Cache-Control': 'no-cache' },
+          signal: controller.signal,
+        }),
       ]);
 
       if (memRes.ok) {
         const memJson = await memRes.json();
-        if (memJson.success && Array.isArray(memJson.data)) {
+        if (isMountedRef.current && memJson.success && Array.isArray(memJson.data)) {
           const mapped: ResilienceMemoryItem[] = memJson.data.map((row: any) => ({
             id: row.MEMORY_ID,
             crisis_title: row.TITLE,
@@ -172,7 +187,7 @@ function ResilienceMemoryContent() {
 
       if (execRes.ok) {
         const execJson = await execRes.json();
-        if (execJson.success && Array.isArray(execJson.data) && execJson.data.length > 0) {
+        if (isMountedRef.current && execJson.success && Array.isArray(execJson.data) && execJson.data.length > 0) {
           const match = execJson.data.find(
             (e: HanaRecoveryExecution) => e.DISRUPTION_ID === disruptionId
           );
@@ -182,18 +197,33 @@ function ResilienceMemoryContent() {
         }
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.warn('Failed to load resilience memory data from HANA, using fallback:', err);
       const memoryData = await getResilienceMemory();
-      setMemoryItems(memoryData || []);
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setMemoryItems(memoryData || []);
+        setDataSource('fallback');
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, [disruptionId]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadData();
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [loadData]);
 
   const handleRefresh = async () => {

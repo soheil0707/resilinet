@@ -274,14 +274,27 @@ function ApprovalCenterContent() {
     }
   }, [approvedStrategy, selectedStrategy]);
 
+  const isMountedRef = React.useRef(true);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
   // Fetch live HANA data
   const fetchData = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      const res = await fetch(`/api/hana/recovery-strategies?disruptionId=${encodeURIComponent(disruptionId)}`);
+      const res = await fetch(`/api/hana/recovery-strategies?disruptionId=${encodeURIComponent(disruptionId)}`, {
+        signal: controller.signal,
+      });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const json = await res.json();
+
+      if (!isMountedRef.current) return;
 
       if (json.success && Array.isArray(json.strategyRanking) && json.strategyRanking.length > 0) {
         setHanaRankings(json.strategyRanking);
@@ -292,16 +305,31 @@ function ApprovalCenterContent() {
         setDataSource('fallback');
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.warn('SAP HANA recovery strategies query fallback in Approval Center:', err);
-      setDataSource('fallback');
+      if (isMountedRef.current) {
+        setDataSource('fallback');
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, [disruptionId]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchData();
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchData]);
 
   const handleRefresh = async () => {

@@ -189,65 +189,89 @@ function ConflictResolutionInner() {
   const [hanaActive, setHanaActive] = useState(false);
   const [hanaError, setHanaError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isMountedRef = React.useRef(true);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Fetch AI Decision and Recovery Strategies from SAP HANA Cloud
   React.useEffect(() => {
+    isMountedRef.current = true;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const fetchHanaData = async () => {
       setIsLoading(true);
       setHanaError(null);
       try {
-        const [decisionRes, stratRes] = await Promise.all([
-          fetch(`/api/hana/ai-decisions?disruptionId=${disruptionId}`),
-          fetch('/api/hana/recovery-strategies'),
-        ]);
+        const stratRes = await fetch(`/api/hana/recovery-strategies?disruptionId=${disruptionId}`, {
+          signal: controller.signal,
+        });
 
         let hasHana = false;
 
-        if (decisionRes.ok) {
-          const decJson = await decisionRes.json();
-          if (decJson.success && Array.isArray(decJson.data) && decJson.data.length > 0) {
-            setAiDecisionRecord(decJson.data[0]);
-            hasHana = true;
+        if (stratRes.ok) {
+          const stratJson = await stratRes.json();
+          if (isMountedRef.current && stratJson.success) {
+            if (Array.isArray(stratJson.aiDecisions) && stratJson.aiDecisions.length > 0) {
+              setAiDecisionRecord(stratJson.aiDecisions[0]);
+              hasHana = true;
+            }
+
+            const rawList = stratJson.strategies || stratJson.strategyRanking || [];
+            if (Array.isArray(rawList) && rawList.length > 0) {
+              const mapped: CanonicalStrategy[] = rawList.map((s: any) => ({
+                id: s.STRATEGY_ID,
+                name: s.STRATEGY_NAME,
+                strategy_type: s.STRATEGY_ID === 'STR-001' ? 'COMBINED' : (s.TRANSPORT_MODE || '').includes('AIR') ? 'EXPEDITED_LOGISTICS' : 'STOCK_TRANSFER',
+                transport_mode: s.TRANSPORT_MODE,
+                cost_inr: Number(s.ESTIMATED_COST) || 185000,
+                costFormatted: `₹${(Number(s.ESTIMATED_COST) / 100000).toFixed(2)}L`,
+                transit_hours: s.TRANSIT_TIME_HOURS || 18,
+                recovery_time_days: Math.ceil((s.TRANSIT_TIME_HOURS || 24) / 24),
+                recovery_score: Number(s.RECOVERY_SCORE) || 90,
+                orchestrator_score: Number(s.ORCHESTRATOR_SCORE) || 80,
+                risk_level: s.RISK_LEVEL === 'LOW' ? 'LOW' : s.RISK_LEVEL === 'HIGH' ? 'HIGH' : 'MEDIUM',
+                is_recommended: Boolean(s.AI_RECOMMENDED || s.STRATEGY_ID === 'STR-001'),
+                revenue_protected_inr: 2420000,
+                description: s.DESCRIPTION || s.AI_REASON || 'SAP HANA operational strategy record.',
+              }));
+              setLiveStrategies(mapped);
+              hasHana = true;
+            }
           }
         }
 
-        if (stratRes.ok) {
-          const stratJson = await stratRes.json();
-          if (stratJson.success && Array.isArray(stratJson.strategies) && stratJson.strategies.length > 0) {
-            const mapped: CanonicalStrategy[] = stratJson.strategies.map((s: any) => ({
-              id: s.STRATEGY_ID,
-              name: s.STRATEGY_NAME,
-              strategy_type: s.STRATEGY_ID === 'STR-001' ? 'COMBINED' : s.TRANSPORT_MODE.includes('AIR') ? 'EXPEDITED_LOGISTICS' : 'STOCK_TRANSFER',
-              transport_mode: s.TRANSPORT_MODE,
-              cost_inr: Number(s.ESTIMATED_COST) || 185000,
-              costFormatted: `₹${(Number(s.ESTIMATED_COST) / 100000).toFixed(2)}L`,
-              transit_hours: s.TRANSIT_TIME_HOURS || 18,
-              recovery_time_days: Math.ceil((s.TRANSIT_TIME_HOURS || 24) / 24),
-              recovery_score: Number(s.RECOVERY_SCORE) || 90,
-              orchestrator_score: Number(s.ORCHESTRATOR_SCORE) || 80,
-              risk_level: s.RISK_LEVEL === 'LOW' ? 'LOW' : s.RISK_LEVEL === 'HIGH' ? 'HIGH' : 'MEDIUM',
-              is_recommended: Boolean(s.AI_RECOMMENDED || s.STRATEGY_ID === 'STR-001'),
-              revenue_protected_inr: 2420000,
-              description: s.DESCRIPTION || s.AI_REASON || 'SAP HANA operational strategy record.',
-            }));
-            setLiveStrategies(mapped);
-            hasHana = true;
-          }
-        }
+        if (!isMountedRef.current) return;
 
         if (!hasHana) {
           setHanaError('SAP HANA Cloud operational service unavailable');
         }
         setHanaActive(hasHana);
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
         console.error('Failed to load HANA AI decision & strategies:', err);
-        setHanaActive(false);
-        setHanaError('SAP HANA Cloud operational service unavailable');
+        if (isMountedRef.current) {
+          setHanaActive(false);
+          setHanaError('SAP HANA Cloud operational service unavailable');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
     fetchHanaData();
+
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [disruptionId]);
 
   // AI Recommendation dynamically sourced from HANA V_ORCH_AI_DECISION
