@@ -38,7 +38,7 @@ export default function LoginPage() {
     setIsUnverified(false);
 
     if (!email.trim()) {
-      setError('Please enter your corporate email address.');
+      setError('Please enter your email address.');
       return;
     }
     if (!password) {
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </div>
         <div className="flex items-center justify-center gap-2">
           <p className="text-xs text-slate-500 font-medium tracking-wide">
-            Astra Motors Manufacturing • Enterprise Crisis Orchestration Platform
+            ResiliNet • AI-Powered Supply Chain Resilience Platform
           </p>
           <span className="font-mono text-[10px] font-bold text-sky-800 bg-sky-100 border border-sky-200 px-1.5 py-0.2 rounded">
             HANA SINGLE SOURCE
@@ -224,7 +224,7 @@ export default function LoginPage() {
                 htmlFor="email"
                 className="block text-xs font-bold text-slate-700 uppercase tracking-wide"
               >
-                Corporate Email
+                Email Address
               </label>
               <div className="mt-1 relative rounded-md shadow-2xs">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -238,7 +238,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="manager@astramotors.com"
+                  placeholder="Enter your email address"
                   suppressHydrationWarning
                   className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400 transition"
                 />
@@ -264,7 +264,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="Enter your password"
                   suppressHydrationWarning
                   className="block w-full pl-9 pr-10 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400 transition"
                 />
@@ -306,7 +306,7 @@ export default function LoginPage() {
 
           {/* Account Registration Link */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>New Astra Motors personnel?</span>
+            <span>New to ResiliNet?</span>
             <Link
               href="/register"
               className="text-sky-600 hover:text-sky-800 font-semibold transition"

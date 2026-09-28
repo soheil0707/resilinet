@@ -42,7 +42,7 @@ export default function RegisterPage() {
       return;
     }
     if (!email.trim() || !email.includes('@')) {
-      setError('Please provide a valid corporate email address.');
+      setError('Please provide a valid email address.');
       return;
     }
     if (!phoneNumber.trim()) {
@@ -66,7 +66,7 @@ export default function RegisterPage() {
         role,
         phoneNumber,
         department: 'Global Supply Chain & Logistics',
-        company: 'Astra Motors Manufacturing',
+        company: 'ResiliNet',
       });
 
       if (result.error) {
@@ -114,7 +114,7 @@ export default function RegisterPage() {
           </span>
         </div>
         <p className="text-xs text-slate-500 font-medium">
-          SAP HANA Cloud Single Source of Truth • Astra Motors Manufacturing
+          SAP HANA Cloud Single Source of Truth • ResiliNet
         </p>
       </div>
 
@@ -193,7 +193,7 @@ export default function RegisterPage() {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Vikramaditya Sen"
+                  placeholder="Enter your full name"
                   className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400"
                 />
               </div>
@@ -214,7 +214,7 @@ export default function RegisterPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@astramotors.com"
+                    placeholder="Enter your email address"
                     className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400"
                   />
                 </div>
@@ -233,7 +233,7 @@ export default function RegisterPage() {
                     required
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+91 98765 43210"
+                    placeholder="Enter your phone number"
                     className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400"
                   />
                 </div>
@@ -280,7 +280,7 @@ export default function RegisterPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min 8 characters"
+                    placeholder="Create a password"
                     className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400"
                   />
                 </div>
@@ -299,7 +299,7 @@ export default function RegisterPage() {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
+                    placeholder="Confirm your password"
                     className="block w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-slate-900 bg-white placeholder:text-slate-400"
                   />
                 </div>

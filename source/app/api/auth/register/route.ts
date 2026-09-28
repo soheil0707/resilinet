@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
     const existing = await getHanaUserByEmail(cleanEmail);
     if (existing) {
       return NextResponse.json(
-        { success: false, error: 'An enterprise account with this email address already exists. Please sign in.' },
-        { status: 409 }
-      );
+  { success: false, error: 'This email address is already registered. Please sign in or use a different email address.' },
+  { status: 409 }
+);
     }
 
     // 3. Hash password with bcrypt
